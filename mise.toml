@@ -1,0 +1,19 @@
+# Record every tool's resolved URL and checksum in mise.lock, which is
+# committed, so local and CI provision the exact bytes that were reviewed.
+# Regenerate it (`mise lock`) in the same commit as any pin change below.
+[settings]
+lockfile = true
+
+[tools]
+go = "1.26.5"
+# The golangci-lint version is pinned identically here and in the CI workflow's
+# golangci-lint-action `version:` — treat them as one atomic value so local and
+# CI lint run the same binary against the same config schema.
+golangci-lint = "2.12.2"
+just = "1.57.0"
+lefthook = "2.1.10"
+# goreleaser and git-cliff back `just release-check` and `just changelog`. They
+# are pinned here rather than assumed present because the release path is
+# reachable locally, not only from the tag workflow.
+goreleaser = "2.16.0"
+git-cliff = "2.13.1"
