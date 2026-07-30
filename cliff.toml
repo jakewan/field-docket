@@ -1,0 +1,75 @@
+# git-cliff configuration — generates CHANGELOG.md / release notes from
+# Conventional Commits, rendering commit bodies (the "why" prose) so the
+# changelog stays curated rather than a list of bare subject lines.
+#
+# Release prep (local, human-gated): `git fetch --tags` then
+# `git cliff --bump --prepend CHANGELOG.md`, polish the section, commit
+# `chore(release): vX.Y.Z`, tag, push. Prepend mode preserves the existing
+# hand-written `[0.1.0]` section; generation starts at the next release.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+"""
+body = """
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+{% for commit in commits %}
+- {% if commit.breaking %}**Breaking:** {% endif %}{{ commit.message | upper_first }}\
+{% if commit.body %}
+
+  {{ commit.body | trim | indent(prefix="  ") }}\
+{% endif %}
+{% endfor %}
+{% endfor %}
+"""
+trim = false
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+# Strip git trailers from the rendered body — issue references and co-author
+# lines are metadata, not changelog prose. (Trailers live at the end of the
+# squash-commit body; the `s` flag lets `.` reach the end of the message.)
+commit_preprocessors = [
+  { pattern = '(?is)\n\n+(closes|fixes|resolves|related to) #.*$', replace = "" },
+  { pattern = '(?im)\n+co-authored-by:.*$', replace = "" },
+]
+# Map the project's commit types to Keep a Changelog categories; non-user-facing
+# types are skipped. `chore(release)` is skipped so a release-prep commit never
+# appears in its own section. Order matters — first match wins.
+commit_parsers = [
+  { message = "^chore\\(release\\)", skip = true },
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^refactor", group = "Changed" },
+  { message = "^perf", group = "Changed" },
+  { message = "^docs", skip = true },
+  { message = "^test", skip = true },
+  { message = "^ci", skip = true },
+  { message = "^build", skip = true },
+  { message = "^chore", skip = true },
+]
+protect_breaking_commits = true
+filter_commits = true
+# Match only semver release tags (vMAJOR.MINOR.PATCH...). `v[0-9]*` would match a
+# bare `v` (zero-or-more digits), letting a stray tag be treated as a release.
+tag_pattern = '^v[0-9]+\.[0-9]+\.[0-9]+'
+topo_order = false
+sort_commits = "oldest"
+
+[bump]
+features_always_bump_minor = true
+# 0.x: a breaking change bumps the minor (0.1.0 -> 0.2.0), not 1.0.0. Revisit
+# when the project approaches 1.0 — past 1.0 a breaking change should bump major.
+breaking_always_bump_major = false

@@ -1,0 +1,68 @@
+# GoReleaser configuration. Runs on a pushed `v*` tag via
+# .github/workflows/release.yml: cross-compiles, archives, checksums, signs the
+# checksums (cosign keyless), and publishes a GitHub Release. Release notes are
+# supplied by the workflow (--release-notes), extracted from CHANGELOG.md.
+#
+# Validate locally with `goreleaser check`; dry-run with `just release-check`
+# (note: --snapshot skips the cosign signing below, since keyless signing needs
+# an OIDC token only present in CI).
+version: 2
+
+project_name: field-docket
+
+builds:
+  - main: ./cmd/field-docket
+    binary: field-docket
+    # CGO_ENABLED=0 is what makes this matrix cross-compile at all. The SQLite
+    # driver is modernc.org/sqlite — pure Go, no cgo — and choosing it over a
+    # cgo-bound alternative is what keeps this line true.
+    env:
+      - CGO_ENABLED=0
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    # serverVersion is injected here AND in the justfile (its `version :=` /
+    # `-ldflags -X`). Both target the same symbol; a rename of
+    # internal/server.serverVersion must be made in BOTH or one path silently
+    # reverts to "dev". `.Tag` (not `.Version`) keeps the leading "v", matching
+    # what local `git describe` builds report.
+    ldflags:
+      - -s -w -X github.com/jakewan/field-docket/internal/server.serverVersion={{ .Tag }}
+    # Deterministic archive/build timestamps. Not a bit-for-bit reproducibility
+    # claim — that would also need the Go patch pinned across mise/go.mod/CI.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+checksum:
+  name_template: checksums.txt
+
+# Keyless cosign signature over the checksums file. No managed keys: the
+# certificate is bound to the workflow's OIDC identity (Sigstore/Fulcio), so
+# verification uses --certificate-identity-regexp + --certificate-oidc-issuer.
+signs:
+  - cmd: cosign
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+# git-cliff owns the changelog (generated at release prep, committed to
+# CHANGELOG.md); GoReleaser must not also generate release notes.
+changelog:
+  disable: true
+
+release:
+  draft: false
+  # Auto-marks a tag carrying a prerelease component (e.g. v0.0.0-test) as a
+  # prerelease, so the end-to-end hardening dry-run never reads as a shipped
+  # version.
+  prerelease: auto

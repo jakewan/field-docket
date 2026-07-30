@@ -1,0 +1,77 @@
+name: Release
+
+# A pushed v* tag is the single release gate. This builds, signs, attests, and
+# publishes.
+on:
+  push:
+    tags: ["v*"]
+
+# Serialize releases on the same ref so a re-pushed tag can't race two
+# `goreleaser release --clean` runs over one dist/ and one GitHub Release.
+# Never cancel: aborting a half-published release is worse than serializing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # create the GitHub Release and upload assets
+  id-token: write # cosign keyless signing + provenance OIDC
+  attestations: write # SLSA build provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # GoReleaser needs full tag history
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      # install-only so the steps below can call goreleaser directly. Pinned to
+      # the v2 line (mise.toml pins the exact patch for local dev); the action's
+      # documented range form avoids a version-string format mismatch.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          install-only: true
+          version: "~> v2"
+
+      # Fail fast: a tag push bypasses PR CI, so the release-prep commit's config
+      # is validated here before any build/sign/publish side effect.
+      - name: Validate release config
+        run: goreleaser check
+
+      # Release notes come from the CHANGELOG.md section for this tag — the
+      # single source of truth (git-cliff writes it at release prep). Start after
+      # the matched header; stop at the next section heading or the first
+      # link-reference line, so the trailing [x.y.z]: refs are not swept in.
+      - name: Extract release notes
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          awk -v ver="$version" '
+            index($0, "## [" ver "]") == 1 { capture = 1; next }
+            capture && /^## / { exit }
+            capture && /^\[.*\]:/ { exit }
+            capture { print }
+          ' CHANGELOG.md | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba}' > RELEASE_NOTES.md
+          if [ ! -s RELEASE_NOTES.md ]; then
+            echo "::error::No release notes found for $GITHUB_REF_NAME in CHANGELOG.md"
+            exit 1
+          fi
+
+      - name: Release
+        run: goreleaser release --clean --release-notes=RELEASE_NOTES.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # SLSA build provenance over the published artifacts.
+      - uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/checksums.txt

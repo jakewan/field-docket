@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  # dorny/paths-filter reads the PR's changed-file list via the API on
+  # pull_request events.
+  pull-requests: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Gate the jobs on whether the change can affect their outcome. A job skipped
+  # via job-level `if:` is reported as "skipped" = passing for required status
+  # checks, so a doc-only PR stays mergeable once test/lint are required —
+  # without the workflow-level `paths:` filter that would leave required checks
+  # permanently pending.
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+      release_config: ${{ steps.filter.outputs.release_config }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
+        id: filter
+        with:
+          filters: |
+            go:
+              - '**/*.go'
+              - 'go.mod'
+              - 'go.sum'
+              - '.golangci.yml'
+              - '.github/workflows/ci.yml'
+            # Includes Go sources and go.mod so a rename of the serverVersion
+            # symbol or the cmd/ path (which the snapshot build resolves) trips
+            # the gate, not just edits to the release config files themselves.
+            release_config:
+              - '**/*.go'
+              - 'go.mod'
+              - '.goreleaser.yaml'
+              - 'cliff.toml'
+              - '.github/workflows/release.yml'
+              - '.github/workflows/ci.yml'
+
+  test:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # go-version-file keeps the Go version single-sourced in go.mod; setup-go
+      # enables module caching by default.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Re-hashes the restored module cache so a corrupted or tampered cache entry
+      # can't be built against — setup-go restores a cache keyed on go.sum, and
+      # `go build` won't re-hash an already-extracted module directory. go.sum
+      # itself is enforced unconditionally by the go command; this is not that.
+      - run: go mod verify
+
+      # Duplicates `just tidy-check` deliberately — this job installs neither
+      # mise nor just, so the raw command is the only form available here. Keep
+      # the two in step, as with the golangci-lint version pin below.
+      - name: Check go.mod tidiness
+        run: go mod tidy -diff
+
+      - run: go build ./...
+
+      # -race is not optional here. The concurrency specs assert the store's
+      # second invariant, and one of them re-execs this test binary to get
+      # genuinely separate processes contending for the same SQLite file.
+      - run: go test -race ./...
+
+  lint:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.go == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # golangci-lint-action needs the version explicitly; this is the one
+      # intentional duplication of the pin in mise.toml. Keep the two in lockstep.
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.12.2
+
+  # Validate the release config on PRs that could affect it. `goreleaser check`
+  # is only a syntax linter, so a snapshot *build* follows — it resolves the
+  # ldflags serverVersion symbol and so catches a rename that `check` alone would
+  # pass and a real release would fail on. No --single-target: the local
+  # `just release-check` keeps that for speed, and CI is where the full release
+  # matrix is worth exercising. Make this a required check so a red result blocks
+  # (the `if:` skip-passing covers unrelated PRs, like the go jobs).
+  release-config:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.release_config == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      # Pinned to the v2 line via the action's documented range form.
+      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+        with:
+          install-only: true
+          version: "~> v2"
+
+      - run: goreleaser check
+
+      - run: goreleaser build --snapshot --clean

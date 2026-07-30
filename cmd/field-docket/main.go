@@ -93,7 +93,12 @@ func runSnapshot(ctx context.Context, args []string) error {
 	fs := flag.NewFlagSet("snapshot", flag.ContinueOnError)
 	configPath := fs.String("config", "", "path to the config file")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "usage: field-docket snapshot [--config path] <destination>\n")
+		// If the usage stream is unwritable there is nothing useful to do about
+		// it and nothing gained by printing the flag defaults into it either, so
+		// the error short-circuits rather than being discarded.
+		if _, werr := fmt.Fprintln(fs.Output(), "usage: field-docket snapshot [--config path] <destination>"); werr != nil {
+			return
+		}
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
