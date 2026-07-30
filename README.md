@@ -1,0 +1,102 @@
+# field-docket
+
+A per-machine store of classed observations, exposed over the [Model Context Protocol](https://modelcontextprotocol.io).
+
+An agent session notices things — a rough edge, a surprising behavior, a place where guidance misfired. Those noticings die with the session. Anything later built on them rests on someone's recollection, which is a poor foundation for a decision.
+
+field-docket gives a session somewhere to put them. An agent records a short observation with a caller-defined class; later, a separate pass reads them back and reasons over the accumulation. Whether something has happened once or five times becomes a fact rather than an impression.
+
+**The server does not know what a class means.** Classes, scopes, and subjects are opaque strings, stored and returned verbatim. field-docket holds evidence; it does not interpret it.
+
+> **Status:** early. The recording and review surface is stable enough to use; adjudication — recording what was *decided* about a body of observations — is not built yet.
+
+## Recording is separated from adjudication
+
+This is the design's load-bearing constraint, and it is enforced structurally rather than by convention.
+
+Recording is append-only and never gated. No stored state can cause a write to be refused, skipped, or silently dropped — a `record_observation` call fails only if its input is malformed. The observation table carries no column referring to any judgment about it, and `BEFORE UPDATE` / `BEFORE DELETE` triggers reject row mutation at the SQL layer.
+
+The reason is that a store which can decline to record is a store that quietly decides what matters. Evidence collection and evidence evaluation are different acts, and mixing them produces a record shaped by the conclusions it was later used to support.
+
+When adjudication arrives it will reference observations, never the reverse.
+
+## MCP tools
+
+| Tool | Purpose |
+| --- | --- |
+| `record_observation` | Append one observation. Returns its id and recorded timestamp. |
+| `review_observations` | Read observations back, filtered and paged, with per-class counts over the whole match. |
+
+### `record_observation`
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `observation` | yes | The observation, in one sentence. |
+| `class` | yes | Caller-defined category. Trimmed and lowercased; never rejected for its value. |
+| `scope_kind` | no | `project` (default) or `user`. |
+| `scope_ref` | no | Which project the observation arose in, as `owner/repo`. Required when `scope_kind` is `project`. |
+| `subject` | no | Optional opaque pointer to what the observation is about — a path, URL, or identifier. |
+
+The recording client is attributed automatically from the MCP handshake; there is no field for it.
+
+`scope_kind` defaults to `project` deliberately. The opposite default fails silently: an observation about a project filed as user-level is invisible to a project-scoped review, and the store is append-only, so it cannot be corrected. Defaulting to `project` turns that into a loud error when `scope_ref` is missing — an error you can retry beats a misfile you cannot fix.
+
+### `review_observations`
+
+All filters are optional and combine with AND: `class`, `scope_kind`, `scope_ref`, `since`, `before` + `before_id`, `limit`.
+
+Results come back newest first. `total` reports the size of the whole match and `truncated` says whether the page cut it short — the store never truncates silently. `class_counts` spans the entire match rather than the returned page, so it stays meaningful when results are capped.
+
+To page backward, pass the last row's `recorded_at` **and** its `id` as `before` / `before_id`. Both are required together: timestamps are not unique when several sessions record concurrently, so a timestamp-only cursor would skip the rest of that instant.
+
+## Observations are stored in the clear
+
+Observation text is free-form and written by an agent from session context, which makes it the most likely place for something sensitive to end up by accident. Two things follow.
+
+**Write observations in your own words.** Describe what went wrong; do not paste credentials, tokens, or raw error payloads.
+
+**Redaction is deliberate and out-of-band.** The append-only triggers block deletion for every in-band caller, so removing an observation means dropping the triggers from a `sqlite3` session, deleting the row, and recreating them. That friction is intentional — it makes redaction a considered act rather than an available one — but it means a leaked secret has a known remedy.
+
+The store is created mode `0600` inside a `0700` directory. It is not encrypted at rest.
+
+## Storage
+
+SQLite in WAL mode, at `$XDG_STATE_HOME/field-docket/field-docket.db` (falling back to `~/.local/state`).
+
+WAL is what allows several agent sessions on one machine to read and write the same store concurrently. It relies on shared memory, so the store must live on a local filesystem — placing it on NFS, SMB, or a sync-service folder will corrupt it.
+
+The store grows without bound. There is no pruning yet.
+
+## Configuration
+
+Optional. With no config file at all, field-docket starts and uses its defaults.
+
+To override, create `$XDG_CONFIG_HOME/field-docket/config.yml`:
+
+```yaml
+# Where the SQLite store lives. Defaults to
+# $XDG_STATE_HOME/field-docket/field-docket.db
+store: ~/.local/state/field-docket/field-docket.db
+```
+
+Resolution order: the `--config` flag, then `$FIELD_DOCKET_CONFIG`, then the XDG path above.
+
+## Installing
+
+```bash
+git clone https://github.com/jakewan/field-docket
+cd field-docket
+just install
+```
+
+That builds to `~/.local/bin/field-docket`. Register it with your MCP client as a stdio server running the `field-docket` command.
+
+## Backups
+
+`field-docket snapshot <path>` writes a consistent single-file copy of the store, suitable for backup.
+
+Use it rather than copying the database file directly: a file copy of a live WAL database can capture a mid-transaction state that will not open.
+
+## License
+
+[MIT](LICENSE)

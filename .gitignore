@@ -1,0 +1,27 @@
+# Go binaries / build artifacts
+/bin/
+/dist/
+/field-docket
+coverage.out
+
+# Local SQLite stores, including the WAL sidecars. The real store lives under
+# $XDG_STATE_HOME, but a stray one here would be observation data, not source.
+*.db
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/settings.local.json
+# Linked worktrees Claude Code creates under the repo (embedded git repos, never tracked)
+.claude/worktrees/
