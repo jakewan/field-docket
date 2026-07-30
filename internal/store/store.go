@@ -34,8 +34,25 @@ import (
 	"strings"
 	"time"
 
-	_ "modernc.org/sqlite" // registers the pure-Go "sqlite" driver
+	"modernc.org/sqlite" // registers the pure-Go "sqlite" driver
 )
+
+// sqliteBusy is SQLITE_BUSY. Declared here rather than imported from the
+// driver's generated lib package, which is large and would be pulled in for one
+// integer.
+const sqliteBusy = 5
+
+// Cold-start retry budget. See initialize.
+const (
+	initAttempts = 12
+	initBackoff  = 25 * time.Millisecond
+)
+
+// isBusy reports whether err is SQLite's "database is locked".
+func isBusy(err error) bool {
+	var serr *sqlite.Error
+	return errors.As(err, &serr) && serr.Code() == sqliteBusy
+}
 
 // timeLayout is the stored timestamp format: fixed width, always UTC.
 //
@@ -123,6 +140,10 @@ type Option func(*Store)
 // Tests need this rather than merely preferring it: two observations recorded in
 // the same millisecond tie on recorded_at, and the id tiebreak within a
 // millisecond is random, so "most recent first" would be undefined.
+//
+// now must be safe for concurrent use. Append calls it, and several agent
+// sessions record against one store at once; the default, time.Now, is safe, but
+// a counter-based test clock needs its own synchronisation.
 func WithClock(now func() time.Time) Option {
 	return func(s *Store) { s.now = now }
 }
@@ -221,14 +242,53 @@ func Open(ctx context.Context, path string, opts ...Option) (s *Store, err error
 	}
 	st.readDB = readDB
 
-	if perr := writeDB.PingContext(ctx); perr != nil {
-		return nil, fmt.Errorf("connecting to store: %w", perr)
-	}
-	if merr := migrate(ctx, writeDB); merr != nil {
-		return nil, merr
+	if ierr := initialize(ctx, writeDB); ierr != nil {
+		return nil, ierr
 	}
 
 	return st, nil
+}
+
+// initialize establishes the connection and brings the schema up to date,
+// retrying while SQLite reports the database as locked.
+//
+// The retry exists for one specific race, and it is not one busy_timeout covers.
+// Switching a database into WAL mode needs a brief exclusive lock, and SQLite
+// returns SQLITE_BUSY for that transition immediately rather than invoking the
+// busy handler — so when several sessions start against a store that does not
+// exist yet, the losers fail outright instead of waiting. Every other contended
+// operation is handled by busy_timeout.
+//
+// This only ever bites on a genuinely new store: WAL mode is recorded in the
+// database header, so once any process has set it, later opens see it already
+// set and the pragma becomes a lock-free no-op. The budget is therefore sized
+// for a cold-start stampede, not for steady-state contention.
+func initialize(ctx context.Context, writeDB *sql.DB) error {
+	var err error
+	for attempt := range initAttempts {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return errors.Join(ctx.Err(), err)
+			case <-time.After(time.Duration(attempt) * initBackoff):
+			}
+		}
+
+		if err = writeDB.PingContext(ctx); err != nil {
+			if isBusy(err) {
+				continue
+			}
+			return fmt.Errorf("connecting to store: %w", err)
+		}
+		if err = migrate(ctx, writeDB); err != nil {
+			if isBusy(err) {
+				continue
+			}
+			return err
+		}
+		return nil
+	}
+	return fmt.Errorf("store stayed locked through %d attempts: %w", initAttempts, err)
 }
 
 // Close releases both handles, reporting any failure from either.
