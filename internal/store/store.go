@@ -494,7 +494,7 @@ func (s *Store) List(ctx context.Context, f Filter) (recs []Record, total int, c
 // sidecars, which is what makes the result safe to hand to a file-copying backup
 // tool. Copying the database file directly can capture a mid-transaction state
 // that will not open.
-func (s *Store) Snapshot(ctx context.Context, dest string) error {
+func (s *Store) Snapshot(ctx context.Context, dest string) (err error) {
 	// VACUUM INTO refuses to overwrite, so write beside the target and rename.
 	// The rename also means a reader of dest never sees a partial snapshot.
 	//
@@ -519,6 +519,21 @@ func (s *Store) Snapshot(ctx context.Context, dest string) error {
 		return fmt.Errorf("clearing snapshot temporary: %w", rerr)
 	}
 
+	// Every failure below has to clear the intermediate itself. A unique name is
+	// what makes overlapping runs safe, and it is also what removes the fixed
+	// name's one virtue: nothing later comes along and clears it. A partial
+	// VACUUM INTO left behind would be an orphaned copy of the observations, at
+	// whatever mode SQLite chose, in a directory a backup tool may well be
+	// watching.
+	defer func() {
+		if err == nil {
+			return
+		}
+		if rerr := os.Remove(tmpPath); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("clearing failed snapshot: %w", rerr))
+		}
+	}()
+
 	if _, verr := s.readDB.ExecContext(ctx, `VACUUM INTO ?`, tmpPath); verr != nil {
 		return fmt.Errorf("writing snapshot: %w", verr)
 	}
@@ -530,12 +545,10 @@ func (s *Store) Snapshot(ctx context.Context, dest string) error {
 	// corpus whose only confidentiality boundary is filesystem permissions.
 	// Applied before the rename so dest is never briefly world-readable.
 	if cerr := os.Chmod(tmpPath, 0o600); cerr != nil {
-		return errors.Join(
-			fmt.Errorf("securing snapshot: %w", cerr), os.Remove(tmpPath))
+		return fmt.Errorf("securing snapshot: %w", cerr)
 	}
 	if rerr := os.Rename(tmpPath, dest); rerr != nil {
-		return errors.Join(
-			fmt.Errorf("moving snapshot into place: %w", rerr), os.Remove(tmpPath))
+		return fmt.Errorf("moving snapshot into place: %w", rerr)
 	}
 	return nil
 }

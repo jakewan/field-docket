@@ -180,6 +180,49 @@ func TestSnapshotIsNotWorldReadable(t *testing.T) {
 	}
 }
 
+// TestFailedSnapshotLeavesNoTemporaryBehind covers the error path, where the
+// intermediate's unique name stops being a pure win: nothing later comes along
+// and clears it, so each failure would otherwise orphan a copy of the
+// observations in the destination directory.
+//
+// The failure has to land *after* VACUUM INTO has written the intermediate,
+// which is the only point at which there is anything to leak — a failure before
+// that leaves nothing behind whether the cleanup runs or not. Renaming onto an
+// existing directory is the deterministic way to get there: the copy is written
+// and settled, and only the publish step fails.
+func TestFailedSnapshotLeavesNoTemporaryBehind(t *testing.T) {
+	st := newStore(t)
+	ctx := context.Background()
+
+	if _, err := st.Append(ctx, sample("doomed")); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	dir := t.TempDir()
+	// A directory where the snapshot file should go: VACUUM INTO succeeds, the
+	// rename onto it does not.
+	dest := filepath.Join(dir, "snapshot.db")
+	if err := os.Mkdir(dest, 0o700); err != nil {
+		t.Fatalf("create blocking directory: %v", err)
+	}
+
+	if err := st.Snapshot(ctx, dest); err == nil {
+		t.Fatal("snapshot onto an existing directory succeeded, want failure")
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read destination directory: %v", err)
+	}
+	if len(entries) != 1 {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("failed snapshot left %v behind, want only the blocking directory", names)
+	}
+}
+
 // TestSnapshotLeavesNoTemporaryBehind pins that a snapshot publishes exactly one
 // file. The intermediate carries the same observations at the same sensitivity,
 // so one left in the destination directory is a second copy nothing will clean
