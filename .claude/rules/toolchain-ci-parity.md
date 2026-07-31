@@ -40,7 +40,7 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 `mise.toml` sets `lockfile = true`, and `mise.lock` records each tool's resolved URL and checksum per platform. It is committed, and the two files must move together: run `mise lock` and commit the result in the same commit as any `mise.toml` version change.
 
-**Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `vuln.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate. (The donor repository this convention came from *did* have a CI consumer: a documentation job that installed through mise. This repository has no documentation book and dropped that job.)
+**Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `vuln.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate.
 
 Locally, a stale lock fails silently in an unhelpful direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
 
