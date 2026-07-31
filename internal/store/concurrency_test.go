@@ -271,6 +271,78 @@ func TestConcurrentReviewDoesNotBlockRecord(t *testing.T) {
 	}
 }
 
+// TestReviewCountsAgreeWithPageUnderConcurrentWrites pins the one read
+// transaction List runs all three of its queries inside.
+//
+// The page, the total, and the class tally are three separate queries. On three
+// pooled connections they would take three WAL snapshots, so an append landing
+// between them yields a total that disagrees with the tally — a grooming pass
+// would then reason about a state the store never actually had. That is
+// invisible to every single-writer test, which is why this one records
+// throughout.
+//
+// The assertions are relational rather than absolute: how many appends land
+// during the read is genuinely nondeterministic, so pinning a count would be a
+// flake. What must hold is that the three results describe one instant.
+func TestReviewCountsAgreeWithPageUnderConcurrentWrites(t *testing.T) {
+	st := newStore(t)
+	ctx := context.Background()
+
+	for range 30 {
+		if _, err := st.Append(ctx, sample("seed")); err != nil {
+			t.Fatalf("seed: %v", err)
+		}
+	}
+
+	stop := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				done <- nil
+				return
+			default:
+				if _, aerr := st.Append(ctx, sample("concurrent")); aerr != nil {
+					done <- aerr
+					return
+				}
+			}
+		}
+	}()
+
+	for range 40 {
+		recs, total, classes, err := st.List(ctx, Filter{Limit: 10})
+		if err != nil {
+			close(stop)
+			<-done
+			t.Fatalf("list under concurrent writes: %v", err)
+		}
+
+		var tallied int
+		for _, c := range classes {
+			tallied += c.Count
+		}
+		if tallied != total {
+			close(stop)
+			<-done
+			t.Fatalf("class counts sum to %d but total is %d: "+
+				"the tally and the count came from different snapshots", tallied, total)
+		}
+		if len(recs) > total {
+			close(stop)
+			<-done
+			t.Fatalf("page holds %d rows but total is %d: "+
+				"the page came from a later snapshot than the count", len(recs), total)
+		}
+	}
+
+	close(stop)
+	if err := <-done; err != nil {
+		t.Fatalf("concurrent append: %v", err)
+	}
+}
+
 // TestConcurrentOpensAgreeOnSchemaVersion covers the cold-start race: several
 // sessions starting at once against a store that does not exist yet.
 //

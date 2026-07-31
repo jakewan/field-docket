@@ -4,8 +4,11 @@
 // The split of responsibility is deliberate — this server is pure mechanism. It
 // records observations and reads them back. It does not interpret a class, a
 // scope, or a subject; those are caller-defined strings, stored and returned
-// verbatim. Deciding what a body of observations means is the calling agent's
-// job, and will become a separate tool operating on a separate entity.
+// without interpretation. (Surrounding whitespace and — for the grouping keys,
+// class and scope_ref — case are normalised on write, which is not
+// interpretation: no value is ever rejected for its content.) Deciding what a
+// body of observations means is the calling agent's job, and will become a
+// separate tool operating on a separate entity.
 //
 // The invariant that shapes this package: recording is separated from
 // adjudication. record_observation refuses malformed input and nothing else. No
@@ -98,8 +101,15 @@ func New(st *store.Store) *mcp.Server {
 // panics applying a schema default into it, tearing down the session over
 // non-conforming-but-harmless input. The SDK allocates the map and then
 // overwrites it: it guards on len(data) > 0, and the literal "null" is four
-// bytes, so it passes that guard and unmarshalling nils the map. jsonschema-go
-// then writes into it via reflect SetMapIndex.
+// bytes, so it passes that guard and unmarshalling nils the map (go-sdk@v1.6.1
+// mcp/tool.go, applySchema). jsonschema-go then writes into it via reflect
+// SetMapIndex (jsonschema-go@v0.4.3 jsonschema/validate.go:741).
+//
+// Note the absent and literal-null cases differ: with arguments omitted the map
+// stays non-nil and defaults apply cleanly, which is why a test that only omits
+// a defaulted field exercises the safe path and would not catch a regression
+// here. If a future SDK fixed the nil-map path, this middleware would become a
+// no-op rather than a hazard.
 //
 // It fires whenever a non-required property carries a default, which is true of
 // both tools here — review's limit and record's scope_kind — so the middleware

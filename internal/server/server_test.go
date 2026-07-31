@@ -144,6 +144,11 @@ type reviewResult struct {
 		ScopeRef    string `json:"scope_ref"`
 		Subject     string `json:"subject"`
 		Agent       string `json:"agent"`
+
+		// Decoded from the wire rather than mirrored from observationView, so a
+		// truncation flag dropped from the emitted JSON surfaces as a failing
+		// assertion rather than as a struct that still compiles.
+		ObservationTruncated bool `json:"observation_truncated"`
 	} `json:"observations"`
 	ClassCounts []struct {
 		Class string `json:"class"`

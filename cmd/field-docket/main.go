@@ -154,6 +154,6 @@ func isCleanShutdown(err error) bool {
 	if err == nil || errors.Is(err, io.EOF) {
 		return true
 	}
-	var wire *jsonrpc.Error
-	return errors.As(err, &wire) && wire.Code == codeServerClosing
+	wire, ok := errors.AsType[*jsonrpc.Error](err)
+	return ok && wire.Code == codeServerClosing
 }

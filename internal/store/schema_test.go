@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -114,6 +115,54 @@ func TestOpenIsIdempotentOnAnExistingStore(t *testing.T) {
 	}
 	if total != 1 {
 		t.Errorf("total = %d, want 1: reopening must not recreate or clear the schema", total)
+	}
+}
+
+// TestOpenRefusesAStoreFromANewerBinary covers the one direction the migration
+// ladder cannot handle by skipping steps.
+//
+// A store is per-machine and long-lived while binaries are not: an older copy
+// lingering in ~/.local/bin can be launched against a store a newer one has
+// already migrated. Reading forward is not possible, so the only safe response
+// is to refuse with a message naming both versions. Without the guard the older
+// binary opens the store as if nothing were wrong and fails later, at query
+// time, with an opaque SQL error about a column it does not know about.
+func TestOpenRefusesAStoreFromANewerBinary(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "field-docket.db")
+
+	st := openAt(t, path)
+	if err := st.Close(); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+
+	// Stand in for a store written by a future binary.
+	future := schemaVersion + 1
+	db, err := sql.Open("sqlite", dsn(path, true))
+	if err != nil {
+		t.Fatalf("open raw handle: %v", err)
+	}
+	if _, eerr := db.ExecContext(context.Background(),
+		"PRAGMA user_version = "+strconv.Itoa(future)); eerr != nil {
+		t.Fatalf("set future schema version: %v", eerr)
+	}
+	if cerr := db.Close(); cerr != nil {
+		t.Fatalf("close raw handle: %v", cerr)
+	}
+
+	reopened, err := Open(context.Background(), path)
+	if err == nil {
+		if cerr := reopened.Close(); cerr != nil {
+			t.Errorf("close: %v", cerr)
+		}
+		t.Fatal("opening a store from a newer binary succeeded, want refusal")
+	}
+	// The message has to name both versions: the operator's fix is to find the
+	// newer binary, and a bare "unsupported schema" does not say which way the
+	// mismatch runs.
+	for _, want := range []string{strconv.Itoa(future), strconv.Itoa(schemaVersion)} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not name version %s", err, want)
+		}
 	}
 }
 

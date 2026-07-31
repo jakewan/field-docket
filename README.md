@@ -6,7 +6,7 @@ An agent session notices things — a rough edge, a surprising behavior, a place
 
 field-docket gives a session somewhere to put them. An agent records a short observation with a caller-defined class; later, a separate pass reads them back and reasons over the accumulation. Whether something has happened once or five times becomes a fact rather than an impression.
 
-**The server does not know what a class means.** Classes, scopes, and subjects are opaque strings, stored and returned verbatim. field-docket holds evidence; it does not interpret it.
+**The server does not know what a class means.** Classes, scopes, and subjects are opaque strings, stored and returned without interpretation. field-docket holds evidence; it does not interpret it.
 
 > **Status:** early. The recording and review surface is stable enough to use; adjudication — recording what was *decided* about a body of observations — is not built yet.
 

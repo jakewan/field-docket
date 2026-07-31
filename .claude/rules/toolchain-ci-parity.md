@@ -40,7 +40,9 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 `mise.toml` sets `lockfile = true`, and `mise.lock` records each tool's resolved URL and checksum per platform. It is committed, and the two files must move together: run `mise lock` and commit the result in the same commit as any `mise.toml` version change.
 
-What a stale lock does depends on where it runs, and the difference is the trap. **In CI** it fails loudly — `jdx/mise-action` runs `mise install --locked`, which refuses any tool lacking a recorded URL for the runner's platform. **Locally** it fails silently in the other direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
+**Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `vuln.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate. (The donor repository this convention came from *did* have a CI consumer: a documentation job that installed through mise. This repository has no documentation book and dropped that job.)
+
+Locally, a stale lock fails silently in an unhelpful direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
 
 A platform absent from the lock gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
 

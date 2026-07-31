@@ -104,6 +104,18 @@ func migrate(ctx context.Context, db *sql.DB) (err error) {
 		return fmt.Errorf("reading schema version: %w", serr)
 	}
 
+	// The ladder only climbs, so a store already past this binary's version is
+	// the one case it cannot handle by skipping steps. Refusing here is what
+	// makes that a legible error rather than an opaque failure at query time
+	// about a column this binary has never heard of. Reachable in normal use: a
+	// store outlives the binaries that open it, and an older copy lingering in
+	// ~/.local/bin can be launched against a store a newer one has migrated.
+	if current > schemaVersion {
+		return fmt.Errorf(
+			"store schema version %d is newer than this binary supports (%d); upgrade field-docket",
+			current, schemaVersion)
+	}
+
 	for _, m := range migrations {
 		if m.version <= current {
 			continue

@@ -118,7 +118,11 @@ func TestListDefaultsItsLimit(t *testing.T) {
 }
 
 func TestStoreFileIsNotWorldReadable(t *testing.T) {
-	dir := t.TempDir()
+	// The store directory must be one the store creates, not one t.TempDir()
+	// hands over: MkdirAll is a no-op on an existing directory and does not
+	// chmod it, so asserting against t.TempDir() would measure the harness's
+	// mode (0700 masked by the runner's umask) rather than the store's.
+	dir := filepath.Join(t.TempDir(), "state", "field-docket")
 	path := filepath.Join(dir, "field-docket.db")
 	st := openAt(t, path)
 
@@ -142,7 +146,68 @@ func TestStoreFileIsNotWorldReadable(t *testing.T) {
 		t.Fatalf("stat directory: %v", err)
 	}
 	if perm := dirInfo.Mode().Perm(); perm&0o077 != 0 {
-		t.Logf("store directory mode = %04o", perm)
+		t.Errorf("store directory mode = %04o, want no group or other access", perm)
+	}
+}
+
+// TestSnapshotIsNotWorldReadable guards the one path designed to carry this data
+// off the machine.
+//
+// The mode is not inherited: VACUUM INTO opens its destination as a main
+// database, which SQLite creates at its own default (0644) rather than at the
+// source's mode — so a snapshot is world-readable unless the store sets the mode
+// itself. That makes the backup, not the store, the widest exposure of a corpus
+// whose only confidentiality boundary is filesystem permissions.
+func TestSnapshotIsNotWorldReadable(t *testing.T) {
+	st := newStore(t)
+	ctx := context.Background()
+
+	if _, err := st.Append(ctx, sample("permissions")); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	dest := filepath.Join(t.TempDir(), "snapshot.db")
+	if err := st.Snapshot(ctx, dest); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	info, err := os.Stat(dest)
+	if err != nil {
+		t.Fatalf("stat snapshot: %v", err)
+	}
+	if perm := info.Mode().Perm(); perm&0o077 != 0 {
+		t.Errorf("snapshot mode = %04o, want no group or other access", perm)
+	}
+}
+
+// TestSnapshotLeavesNoTemporaryBehind pins that a snapshot publishes exactly one
+// file. The intermediate carries the same observations at the same sensitivity,
+// so one left in the destination directory is a second copy nothing will clean
+// up — and, in a directory a backup tool watches, one it may well ship.
+func TestSnapshotLeavesNoTemporaryBehind(t *testing.T) {
+	st := newStore(t)
+	ctx := context.Background()
+
+	if _, err := st.Append(ctx, sample("leftovers")); err != nil {
+		t.Fatalf("append: %v", err)
+	}
+
+	dir := t.TempDir()
+	dest := filepath.Join(dir, "snapshot.db")
+	if err := st.Snapshot(ctx, dest); err != nil {
+		t.Fatalf("snapshot: %v", err)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read destination directory: %v", err)
+	}
+	if len(entries) != 1 {
+		names := make([]string, 0, len(entries))
+		for _, e := range entries {
+			names = append(names, e.Name())
+		}
+		t.Errorf("snapshot left %d files (%v), want only the snapshot", len(entries), names)
 	}
 }
 

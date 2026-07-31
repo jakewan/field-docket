@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jakewan/field-docket/internal/store"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -188,6 +190,70 @@ func TestReviewReportsTruncationWhenLimitCaps(t *testing.T) {
 	}
 	if got.Total != 5 {
 		t.Errorf("total = %d, want 5: total spans the whole match, not the page", got.Total)
+	}
+}
+
+// TestReviewCapsObservationTextAndSaysSo covers the per-entry cap, which bounds
+// the payload rather than the row count — limit does not, and 500 free-text
+// observations reach the model as a result the SDK serialises twice.
+func TestReviewCapsObservationTextAndSaysSo(t *testing.T) {
+	cs := newTestSession(t)
+
+	long := strings.Repeat("x", observationTextCap+500)
+	res := callTool(t, cs, "record_observation", map[string]any{
+		"observation": long,
+		"class":       "verbose",
+		"scope_ref":   "owner/repo",
+	})
+	if res.IsError {
+		t.Fatalf("record: %s", errorText(t, res))
+	}
+
+	got := review(t, cs, map[string]any{})
+	if len(got.Observations) != 1 {
+		t.Fatalf("returned %d observations, want 1", len(got.Observations))
+	}
+	entry := got.Observations[0]
+	if len(entry.Observation) > observationTextCap {
+		t.Errorf("observation is %d bytes, want at most %d", len(entry.Observation), observationTextCap)
+	}
+	if !entry.ObservationTruncated {
+		t.Error("observation_truncated = false on a capped entry; " +
+			"a caller cannot otherwise tell a clipped observation from a short one")
+	}
+}
+
+// TestReviewCapDoesNotSplitARune guards the boundary case the byte cap invites.
+//
+// Cutting a multi-byte rune in half produces invalid UTF-8, which encoding/json
+// silently replaces with U+FFFD — so the caller receives a corrupted trailing
+// character rather than a clean truncation. Observations are free text an agent
+// composes, so non-ASCII in one is ordinary, not exotic.
+func TestReviewCapDoesNotSplitARune(t *testing.T) {
+	cs := newTestSession(t)
+
+	// Three-byte runes do not divide into the cap evenly, so the cap lands
+	// mid-rune and a byte-wise cut would split one.
+	long := strings.Repeat("☃", observationTextCap)
+	res := callTool(t, cs, "record_observation", map[string]any{
+		"observation": long,
+		"class":       "unicode",
+		"scope_ref":   "owner/repo",
+	})
+	if res.IsError {
+		t.Fatalf("record: %s", errorText(t, res))
+	}
+
+	got := review(t, cs, map[string]any{})
+	if len(got.Observations) != 1 {
+		t.Fatalf("returned %d observations, want 1", len(got.Observations))
+	}
+	text := got.Observations[0].Observation
+	if !utf8.ValidString(text) {
+		t.Errorf("capped observation is not valid UTF-8: %q", text[max(0, len(text)-8):])
+	}
+	if strings.ContainsRune(text, utf8.RuneError) {
+		t.Error("capped observation carries U+FFFD; the cap split a rune")
 	}
 }
 

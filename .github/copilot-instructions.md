@@ -6,7 +6,7 @@ This file is self-contained — it does not depend on any other document being l
 
 ## What field-docket is
 
-field-docket is a single-binary [Model Context Protocol](https://modelcontextprotocol.io) server. It records classed observations to a per-machine SQLite store and reads them back. An agent session records a short free-text observation with a caller-defined class; a later pass reads the accumulation and reasons over it. The server never interprets a class, a scope, or a subject — those are opaque strings, stored and returned verbatim.
+field-docket is a single-binary [Model Context Protocol](https://modelcontextprotocol.io) server. It records classed observations to a per-machine SQLite store and reads them back. An agent session records a short free-text observation with a caller-defined class; a later pass reads the accumulation and reasons over it. The server never interprets a class, a scope, or a subject — those are opaque strings, stored and returned without interpretation.
 
 ## Mandatory PR checks
 

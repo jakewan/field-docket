@@ -50,8 +50,8 @@ const (
 
 // isBusy reports whether err is SQLite's "database is locked".
 func isBusy(err error) bool {
-	var serr *sqlite.Error
-	return errors.As(err, &serr) && serr.Code() == sqliteBusy
+	serr, ok := errors.AsType[*sqlite.Error](err)
+	return ok && serr.Code() == sqliteBusy
 }
 
 // timeLayout is the stored timestamp format: fixed width, always UTC.
@@ -153,9 +153,12 @@ func WithClock(now func() time.Time) Option {
 // The pragmas are carried in the DSN rather than executed after sql.Open so the
 // driver applies them to every pooled connection as it is created, and because
 // the driver sorts busy_timeout to the front of the list — arming the busy
-// handler before journal_mode runs. That ordering matters on a cold start, where
+// handler before journal_mode runs (modernc.org/sqlite@v1.53.0 sqlite.go:217,
+// "Push 'busy_timeout' first"). That ordering matters on a cold start, where
 // several processes can race to flip a brand-new file into WAL and the loser
-// needs to wait rather than fail.
+// needs to wait rather than fail. If the driver ever stopped sorting, a cold
+// start under contention would fail outright rather than wait — loudly, not
+// silently.
 //
 // writable selects the one asymmetric parameter, _txlock. See Open.
 func dsn(path string, writable bool) string {
@@ -185,7 +188,8 @@ func dsn(path string, writable bool) string {
 //
 // _txlock=immediate is on the write handle only. The driver consumes it in
 // exactly one place — the BeginTx path, gated on the transaction not being
-// read-only — so it governs the migration transaction and nothing else. An
+// read-only (modernc.org/sqlite@v1.53.0 tx.go:19-25, the sole reader of
+// beginMode) — so it governs the migration transaction and nothing else. An
 // autocommit INSERT never reaches that path; it takes the write lock directly,
 // so the deferred-lock-upgrade hazard the parameter exists to avoid does not
 // arise on the record path at all. Putting it on the read handle would be
@@ -263,6 +267,13 @@ func Open(ctx context.Context, path string, opts ...Option) (s *Store, err error
 // database header, so once any process has set it, later opens see it already
 // set and the pragma becomes a lock-free no-op. The budget is therefore sized
 // for a cold-start stampede, not for steady-state contention.
+//
+// The SQLITE_BUSY claim above is empirical rather than read off a specification,
+// and TestSeparateProcessesRecordConcurrentlyWithoutLoss is the evidence:
+// shrinking the budget to one attempt makes it fail with SQLITE_BUSY well inside
+// the busy_timeout window. It fails only under repetition, though — a single run
+// passes with the retry gone — so do not read one green run as showing this is
+// dead code.
 func initialize(ctx context.Context, writeDB *sql.DB) error {
 	var err error
 	for attempt := range initAttempts {
@@ -486,15 +497,45 @@ func (s *Store) List(ctx context.Context, f Filter) (recs []Record, total int, c
 func (s *Store) Snapshot(ctx context.Context, dest string) error {
 	// VACUUM INTO refuses to overwrite, so write beside the target and rename.
 	// The rename also means a reader of dest never sees a partial snapshot.
-	tmp := dest + ".tmp"
-	if rerr := os.Remove(tmp); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
-		return fmt.Errorf("clearing stale snapshot temporary: %w", rerr)
+	//
+	// The intermediate name comes from os.CreateTemp rather than a fixed
+	// dest+".tmp" so that two overlapping snapshot runs — a scheduled one and a
+	// manual one, say — cannot collide, where a fixed name lets the second run's
+	// cleanup delete the first's in-progress output. It is created in dest's own
+	// directory so the rename stays on one filesystem and therefore atomic.
+	tmp, terr := os.CreateTemp(filepath.Dir(dest), ".field-docket-snapshot-*")
+	if terr != nil {
+		return fmt.Errorf("reserving snapshot temporary: %w", terr)
 	}
-	if _, verr := s.readDB.ExecContext(ctx, `VACUUM INTO ?`, tmp); verr != nil {
+	tmpPath := tmp.Name()
+	if cerr := tmp.Close(); cerr != nil {
+		return errors.Join(
+			fmt.Errorf("reserving snapshot temporary: %w", cerr), os.Remove(tmpPath))
+	}
+	// Removed rather than written into: VACUUM INTO refuses an existing
+	// destination. CreateTemp's value here is the reserved unique name, not the
+	// file handle.
+	if rerr := os.Remove(tmpPath); rerr != nil {
+		return fmt.Errorf("clearing snapshot temporary: %w", rerr)
+	}
+
+	if _, verr := s.readDB.ExecContext(ctx, `VACUUM INTO ?`, tmpPath); verr != nil {
 		return fmt.Errorf("writing snapshot: %w", verr)
 	}
-	if rerr := os.Rename(tmp, dest); rerr != nil {
-		return fmt.Errorf("moving snapshot into place: %w", rerr)
+
+	// SQLite creates a VACUUM INTO destination as a main database, at its own
+	// default mode (0644) rather than at the source's — unlike the -wal/-shm
+	// sidecars, which do inherit. Without this the backup, the one path designed
+	// to carry observations off the machine, would be the widest exposure of a
+	// corpus whose only confidentiality boundary is filesystem permissions.
+	// Applied before the rename so dest is never briefly world-readable.
+	if cerr := os.Chmod(tmpPath, 0o600); cerr != nil {
+		return errors.Join(
+			fmt.Errorf("securing snapshot: %w", cerr), os.Remove(tmpPath))
+	}
+	if rerr := os.Rename(tmpPath, dest); rerr != nil {
+		return errors.Join(
+			fmt.Errorf("moving snapshot into place: %w", rerr), os.Remove(tmpPath))
 	}
 	return nil
 }

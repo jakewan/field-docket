@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/jsonschema-go/jsonschema"
 	"github.com/jakewan/field-docket/internal/store"
@@ -24,7 +25,12 @@ All filters are optional and combine with AND. total reports the size of the ` +
 To page backward, pass the last returned observation's recorded_at as before ` +
 	`AND its id as before_id. Both are needed: timestamps are not unique when ` +
 	`several sessions record at once, so before on its own would skip the rest ` +
-	`of that instant.`
+	`of that instant.
+
+A long observation comes back shortened, with observation_truncated set on that ` +
+	`entry — limit bounds how many observations return, not how large they are. ` +
+	`Timestamps are stored to millisecond resolution, so since and before are ` +
+	`applied at that precision.`
 
 // maxLimit bounds a single page. The SDK serialises a result twice (structured
 // plus a back-compat text rendering), so the wire cost is about double the
@@ -167,10 +173,20 @@ func (d *deps) reviewObservations(ctx context.Context, _ *mcp.CallToolRequest, i
 	}, nil
 }
 
-// clip shortens s to at most n characters, reporting whether it did.
+// clip shortens s to at most n bytes, reporting whether it did.
+//
+// The cap is in bytes because what it bounds is the serialised payload, not a
+// character count. It backs up to a rune boundary rather than cutting at exactly
+// n: an observation is free text an agent composed, so a multi-byte rune
+// straddling the limit is ordinary, and slicing through one yields invalid UTF-8
+// that encoding/json silently replaces with U+FFFD — handing the caller a
+// corrupted trailing character instead of a clean truncation.
 func clip(s string, n int) (string, bool) {
 	if len(s) <= n {
 		return s, false
+	}
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
 	}
 	return s[:n], true
 }

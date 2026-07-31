@@ -45,7 +45,7 @@ just build          # build the binary to bin/ (with the version ldflags)
 just test           # go test ./...
 just test-race      # go test -race ./... — what CI and the pre-push hook run
 just lint           # golangci-lint run ./...
-just fmt            # gofmt -w .
+just fmt            # golangci-lint fmt ./... — the formatter set CI enforces
 just tidy-check     # fail if go.mod/go.sum are not tidy (CI runs the same check)
 just vuln           # govulncheck over dependencies and the standard library
 just release-check  # goreleaser check + snapshot build
@@ -64,9 +64,9 @@ Go authoring conventions are in `.claude/rules/go-practices.md` (loaded when Cla
 
 - **Single binary, daemonless.** It serves a session over stdio and exits. No background process, no network service, no outbound request.
 - **MCP over stdio is JSON-RPC.** stdout carries the protocol and nothing else — send diagnostics to stderr (`log`), never to stdout. Exiting on stdin EOF is normal shutdown.
-- **The server stores; the caller interprets.** Classes, scopes, and subjects are opaque strings, stored and returned verbatim. The server never branches on what one means. Guidance about vocabulary belongs in the tool *description*, which a calling agent reads at call time — not in Go.
+- **The server stores; the caller interprets.** Classes, scopes, and subjects are opaque strings, stored and returned without interpretation. The server never branches on what one means. Guidance about vocabulary belongs in the tool *description*, which a calling agent reads at call time — not in Go.
 - **A published enum is a hint, not a storage constraint.** `scope_kind` ships `project`/`user` as a schema `enum`, so a typo is rejected loudly at the MCP boundary, while the column itself accepts any string. A `CHECK` constraint would hard-code one caller's taxonomy into a general-purpose store, and widening it later would mean SQLite's twelve-step table rebuild in a database whose triggers exist to make row rewriting impossible.
-- **Normalization is not gating.** `class` and `scope_ref` are trimmed and lowercased on write so `Correctness` and `correctness ` land in one bucket rather than three. No value is ever *rejected* for its content. This matters because the store is append-only: a fragmented vocabulary cannot be cleaned up afterward.
+- **Normalization is not gating.** `class` and `scope_ref` are trimmed and lowercased on write so `Correctness` and `correctness ` land in one bucket rather than three; `observation` and `subject` are trimmed but not lowercased, since neither is a grouping key. No value is ever *rejected* for its content. This matters because the store is append-only: a fragmented vocabulary cannot be cleaned up afterward.
 - **`scope_kind` defaults to `project`, and that direction is deliberate.** The opposite default fails silently — an observation about a repository filed as user-level is invisible to every project-scoped review and unfixable in an append-only store. Defaulting to `project` converts that into a loud, retryable error when `scope_ref` is blank.
 - **SQLite via `modernc.org/sqlite`.** Pure Go, so `CGO_ENABLED=0` holds and the release matrix cross-compiles. The alternatives were disqualified by the concurrency invariant rather than merely beaten by it: a flat file means hand-rolling cross-process read-modify-write, and bbolt takes an exclusive lock for the lifetime of an open handle — with stdio servers living a whole session, the second agent would block forever.
 - **Config is optional and its absence is not an error.** There is no required key; a missing file yields defaults and the server starts. `TestConfigDefaultsWhenAbsent` pins that.

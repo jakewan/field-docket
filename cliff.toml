@@ -4,8 +4,16 @@
 #
 # Release prep (local, human-gated): `git fetch --tags` then
 # `git cliff --bump --prepend CHANGELOG.md`, polish the section, commit
-# `chore(release): vX.Y.Z`, tag, push. Prepend mode preserves the existing
-# hand-written `[0.1.0]` section; generation starts at the next release.
+# `chore(release): vX.Y.Z`, tag, push. Prepend mode inserts a new section above
+# whatever is already there and never rewrites an existing one.
+#
+# The FIRST release is the exception, and running the above for it loses work.
+# The curated `## [Unreleased]` entries would stay stranded under that heading
+# while a thin generated `## [0.1.0]` — built from squash-commit subjects — went
+# out as the release notes, since release.yml extracts whichever section matches
+# the tag. So for the first release, rename `## [Unreleased]` to
+# `## [0.1.0] - <date>` by hand and tag that. Every release after it has a prior
+# tag to generate from and follows the ritual above.
 
 [changelog]
 header = """

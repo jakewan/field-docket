@@ -37,10 +37,10 @@ Write the observation in your own words. Do not paste credentials, tokens, or ` 
 // descriptions only.
 type recordInput struct {
 	Observation string `json:"observation"          jsonschema:"the observation, in one sentence"`
-	Class       string `json:"class"                jsonschema:"caller-defined category this observation belongs to; stored verbatim and never interpreted by the server"`
+	Class       string `json:"class"                jsonschema:"caller-defined category this observation belongs to; never interpreted by the server, and trimmed and lowercased so near-identical values group together"`
 	ScopeKind   string `json:"scope_kind,omitempty" jsonschema:"whether the observation belongs to a project or to the user; defaults to project"`
 	ScopeRef    string `json:"scope_ref,omitempty"  jsonschema:"the project the observation arose in, as owner/repo; required when scope_kind is project"`
-	Subject     string `json:"subject,omitempty"    jsonschema:"optional pointer to what the observation is about — a path, URL, or other identifier, stored and returned verbatim"`
+	Subject     string `json:"subject,omitempty"    jsonschema:"optional pointer to what the observation is about — a path, URL, or other identifier, never interpreted by the server and returned as given apart from surrounding whitespace"`
 }
 
 // recordOutput confirms exactly what was persisted. recorded_at is echoed

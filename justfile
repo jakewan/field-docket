@@ -46,9 +46,12 @@ test-coverage:
 lint:
     golangci-lint run ./...
 
-# Format code
+# Format code with the same formatter set CI enforces (gofmt + goimports, per
+# .golangci.yml). Plain `gofmt -w .` would leave import ordering untouched, so a
+# contributor who formats and pushes without the commit hook installed could
+# still fail the lint job.
 fmt:
-    gofmt -w .
+    golangci-lint fmt ./...
 
 # Tidy module dependencies
 tidy:
