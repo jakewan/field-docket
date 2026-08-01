@@ -5,7 +5,7 @@ go 1.26.5
 require (
 	github.com/goccy/go-yaml v1.19.2
 	github.com/google/jsonschema-go v0.4.3
-	github.com/modelcontextprotocol/go-sdk v1.6.1
+	github.com/modelcontextprotocol/go-sdk v1.7.0
 	modernc.org/sqlite v1.53.0
 )
 
@@ -23,6 +23,7 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/telemetry v0.0.0-20260708182218-49f421fb7959 // indirect
+	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.48.0 // indirect
 	golang.org/x/vuln v1.6.0 // indirect
 	modernc.org/libc v1.74.1 // indirect
