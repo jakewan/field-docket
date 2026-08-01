@@ -122,7 +122,12 @@ func runSnapshot(ctx context.Context, args []string) error {
 	return st.Snapshot(ctx, fs.Arg(0))
 }
 
-// parseConfigFlag extracts --config from args.
+// parseConfigFlag extracts --config from args, rejecting anything left over.
+//
+// A leftover argument is how a mistyped subcommand arrives: it does not match
+// the snapshot dispatch in main, so it falls through to here, and accepting it
+// would start a server instead — doing nothing the operator asked for, and
+// saying nothing about it.
 //
 // It uses its own FlagSet rather than the package-level flag functions so this
 // stays a pure function over its arguments and can be exercised directly,
@@ -132,6 +137,9 @@ func parseConfigFlag(args []string) (string, error) {
 	path := fs.String("config", "", "path to the config file")
 	if err := fs.Parse(args); err != nil {
 		return "", err
+	}
+	if fs.NArg() != 0 {
+		return "", fmt.Errorf("unexpected argument %q (the only subcommand is snapshot)", fs.Arg(0))
 	}
 	return *path, nil
 }

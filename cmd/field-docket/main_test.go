@@ -42,6 +42,30 @@ func TestParseConfigFlagRejectsUnknownFlags(t *testing.T) {
 	}
 }
 
+// TestParseConfigFlagRejectsPositionalArguments covers the operator-mistake case
+// the snapshot dispatch in main lets through: a mistyped subcommand does not
+// match "snapshot", so it arrives here, and a parser that ignores leftover
+// arguments would start a server instead — doing nothing the operator asked for
+// and saying nothing about it. runSnapshot already rejects a wrong argument
+// count; this holds the server path to the same contract.
+func TestParseConfigFlagRejectsPositionalArguments(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"mistyped subcommand", []string{"snapshto", "/tmp/snapshot.db"}},
+		{"stray argument after a valid flag", []string{"--config", "/tmp/config.yml", "extra"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := parseConfigFlag(tt.args); err == nil {
+				t.Fatalf("positional arguments %q were accepted", tt.args)
+			}
+		})
+	}
+}
+
 // TestIsCleanShutdown covers the exits that are not failures. An MCP client
 // closes stdin when it is done, and treating that as an error would make every
 // normal session end in a fatal log line.

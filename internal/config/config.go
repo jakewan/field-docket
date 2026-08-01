@@ -38,11 +38,15 @@ type file struct {
 // pointed at its own config by a single field-docket-specific knob rather than
 // by relocating the general-purpose XDG base.
 //
-// A missing file yields defaults, not an error. A file that exists but cannot be
-// read or parsed is an error: the caller asked for a specific config, so
-// silently ignoring a typo in it would be worse than refusing to start.
+// An absent config yields defaults only where the path was not asked for — the
+// XDG default is expected not to exist on most machines. A config named by
+// --config or $FIELD_DOCKET_CONFIG must exist and must parse: the caller asked
+// for a specific file, so silently ignoring a typo would be worse than refusing
+// to start. That applies to a typo in the path as much as one inside the file,
+// and the path is the worse of the two — none of the intended configuration
+// takes effect, rather than some of it.
 func Load(_ context.Context, override string) (*Config, error) {
-	path, err := configPath(override)
+	path, named, err := configPath(override)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +54,10 @@ func Load(_ context.Context, override string) (*Config, error) {
 	data, err := os.ReadFile(path) //nolint:gosec // path is operator-supplied by design
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return &Config{}, nil
+			if !named {
+				return &Config{}, nil
+			}
+			return nil, fmt.Errorf("config %s does not exist; omit --config and $FIELD_DOCKET_CONFIG to start on defaults: %w", path, err)
 		}
 		return nil, fmt.Errorf("reading config %s: %w", path, err)
 	}
@@ -80,26 +87,33 @@ func Load(_ context.Context, override string) (*Config, error) {
 // trimmed $FIELD_DOCKET_CONFIG, then $XDG_CONFIG_HOME/field-docket/config.yml
 // (falling back to ~/.config when that is unset).
 //
+// named reports whether the operator asked for this path rather than falling
+// through to the XDG default. Load needs the distinction because it decides
+// whether an absent file is benign, and only the resolved path is left by then.
+//
 // Whitespace-only override or env values are ignored so a stray value cannot
-// resolve to a nonsense path. The XDG variable is read directly rather than via
-// os.UserConfigDir so the layout matches the documented one on every platform
-// and stays isolable with t.Setenv.
-func configPath(override string) (string, error) {
+// resolve to a nonsense path — and because they are ignored, they are not
+// "named" either, so a blank knob still starts on defaults. The XDG variable is
+// read directly rather than via os.UserConfigDir so the layout matches the
+// documented one on every platform and stays isolable with t.Setenv.
+func configPath(override string) (path string, named bool, err error) {
 	if p := strings.TrimSpace(override); p != "" {
-		return expandTilde(p, "--config path")
+		expanded, xerr := expandTilde(p, "--config path")
+		return expanded, true, xerr
 	}
 	if p := strings.TrimSpace(os.Getenv("FIELD_DOCKET_CONFIG")); p != "" {
-		return expandTilde(p, "FIELD_DOCKET_CONFIG path")
+		expanded, xerr := expandTilde(p, "FIELD_DOCKET_CONFIG path")
+		return expanded, true, xerr
 	}
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", fmt.Errorf("resolving config dir: %w", err)
+		home, herr := os.UserHomeDir()
+		if herr != nil {
+			return "", false, fmt.Errorf("resolving config dir: %w", herr)
 		}
 		base = filepath.Join(home, ".config")
 	}
-	return filepath.Join(base, "field-docket", "config.yml"), nil
+	return filepath.Join(base, "field-docket", "config.yml"), false, nil
 }
 
 // expandTilde rewrites a leading ~ or ~/ to the user's home directory. Paths

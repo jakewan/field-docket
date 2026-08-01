@@ -87,6 +87,37 @@ func TestConfigRejectsAnUnreadableNamedConfig(t *testing.T) {
 	}
 }
 
+// TestConfigRejectsAMissingNamedConfig extends the line the unreadable-config
+// case draws, to the path itself. A config the operator named and that does not
+// exist is an error for the same reason a malformed one is: the request was
+// specific, and falling back to defaults on a mistyped path is the worse failure
+// of the two — none of the intended configuration takes effect, and nothing says
+// so. An absent *implicit* config stays non-fatal; that is
+// TestConfigDefaultsWhenAbsent.
+func TestConfigRejectsAMissingNamedConfig(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "no-such-config.yml")
+
+	tests := []struct {
+		name     string
+		override string
+		env      string
+	}{
+		{"named by --config", missing, ""},
+		{"named by FIELD_DOCKET_CONFIG", "", missing},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+			t.Setenv("FIELD_DOCKET_CONFIG", tt.env)
+
+			if _, err := Load(context.Background(), tt.override); err == nil {
+				t.Fatal("a config the operator named but that does not exist was accepted")
+			}
+		})
+	}
+}
+
 func TestConfigTreatsABlankStoreAsAbsent(t *testing.T) {
 	dir := t.TempDir()
 	path := writeConfig(t, dir, "store: \"   \"\n")
