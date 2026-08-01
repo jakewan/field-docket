@@ -1,0 +1,48 @@
+name: Problem Report
+description: Describe a problem you've encountered. Focus on the problem, not a proposed solution.
+title: "[Problem]: "
+labels: ["problem"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project uses problem-framed issues. Describe the problem you're facing — we'll figure out the solution together. If you have solution ideas, you're welcome to mention them in Additional Context, but the issue should stand on the strength of the problem description alone.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What problem are you experiencing?
+      placeholder: Describe the problem clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current Behavior
+      description: What happens today? Be specific about what you observe.
+      placeholder: Describe what currently happens.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-behavior
+    attributes:
+      label: Desired Behavior
+      description: What would you expect or want to happen instead?
+      placeholder: Describe the outcome you're looking for.
+    validations:
+      required: true
+  - type: textarea
+    id: why-this-matters
+    attributes:
+      label: Why This Matters
+      description: Why is this problem worth solving? What's the impact on your workflow?
+      placeholder: Explain why this matters to you.
+    validations:
+      required: true
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: "Any extra information: config snippets, terminal output, OS/version details, screenshots."
+    validations:
+      required: false

@@ -1,0 +1,27 @@
+pre-commit:
+  parallel: true
+  commands:
+    go-format:
+      glob: "**/*.go"
+      # golangci-lint fmt applies the formatters configured in .golangci.yml
+      # (gofmt + goimports) — the same set CI enforces — so a commit can't pass
+      # the hook with import ordering that would later fail the lint job.
+      run: golangci-lint fmt {staged_files}
+      stage_fixed: true
+      skip: merge
+
+pre-push:
+  piped: true
+  commands:
+    go-lint:
+      priority: 1
+      run: just lint
+      skip: merge
+    go-test:
+      priority: 2
+      # -race, not a plain `go test`: the concurrency specs assert this store's
+      # second invariant (concurrent writers from separate sessions lose no
+      # observations), and without the detector they pass while the data race
+      # they exist to catch goes unreported. CI runs the same form.
+      run: just test-race
+      skip: merge
