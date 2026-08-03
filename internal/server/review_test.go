@@ -98,7 +98,7 @@ func TestReviewFiltersByScope(t *testing.T) {
 		}
 	}
 	record("project", "jakewan/field-docket")
-	record("project", "jakewan/dotfiles")
+	record("project", "owner/other-repo")
 	record("user", "")
 	record("user", "")
 
@@ -109,7 +109,7 @@ func TestReviewFiltersByScope(t *testing.T) {
 	}{
 		{"by kind user", map[string]any{"scope_kind": "user"}, 2},
 		{"by kind project", map[string]any{"scope_kind": "project"}, 2},
-		{"by ref", map[string]any{"scope_ref": "jakewan/dotfiles"}, 1},
+		{"by ref", map[string]any{"scope_ref": "owner/other-repo"}, 1},
 		{"kind and ref together", map[string]any{
 			"scope_kind": "project", "scope_ref": "jakewan/field-docket"}, 1},
 	}
