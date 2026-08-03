@@ -1,5 +1,7 @@
 # field-docket
 
+[![CI](https://github.com/jakewan/field-docket/actions/workflows/ci.yml/badge.svg)](https://github.com/jakewan/field-docket/actions/workflows/ci.yml)
+
 A per-machine store of classed observations, exposed over the [Model Context Protocol](https://modelcontextprotocol.io).
 
 An agent session notices things — a rough edge, a surprising behavior, a place where guidance misfired. Those noticings die with the session. Anything later built on them rests on someone's recollection, which is a poor foundation for a decision.
@@ -57,7 +59,7 @@ Observation text is free-form and written by an agent from session context, whic
 
 **Redaction is deliberate and out-of-band.** The append-only triggers block deletion for every in-band caller, so removing an observation means dropping the triggers from a `sqlite3` session, deleting the row, and recreating them. That friction is intentional — it makes redaction a considered act rather than an available one — but it means a leaked secret has a known remedy.
 
-The store is created mode `0600` inside a `0700` directory. It is not encrypted at rest.
+The store is created mode `0600` inside a `0700` directory. Those modes are set when the store is created and are not repaired afterward, so a store that arrives some other way — restored from a backup, or made by hand in a `sqlite3` session — keeps whatever permissions it came with. It is not encrypted at rest.
 
 ## Storage
 
@@ -96,6 +98,13 @@ That builds to `~/.local/bin/field-docket`. Register it with your MCP client as 
 `field-docket snapshot <path>` writes a consistent single-file copy of the store, suitable for backup.
 
 Use it rather than copying the database file directly: a file copy of a live WAL database can capture a mid-transaction state that will not open.
+
+## Project
+
+- [Contributing](CONTRIBUTING.md) — setup, scope, testing approach, and PR posture.
+- [Security policy](SECURITY.md) — how to report a vulnerability, and what this project claims about data handling and the supply chain.
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 

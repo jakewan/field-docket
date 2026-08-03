@@ -44,6 +44,7 @@ just build              # Build binary to bin/
 just test               # Run all tests
 just test-race          # Run all tests under the race detector (what CI runs)
 just lint               # Run golangci-lint
+just fmt                # Apply the formatters CI enforces (the pre-commit hook runs this)
 just vuln               # Scan dependencies and stdlib for known vulnerabilities
 just tidy-check         # Fail if go.mod/go.sum are not tidy
 just release-check      # Validate release config and dry-run a snapshot build
@@ -82,3 +83,8 @@ Write **field-docket** in lowercase throughout — it is the binary, the Go modu
 - Keep PRs small and focused — each PR should serve a single purpose.
 - PRs are squash-merged, so commit history within a branch doesn't need to be pristine.
 - This project merges, never rebases.
+
+Two requirements are enforced rather than advisory, and both are easier to know about up front than to discover from a rejected push:
+
+- **Commits must be signed.** The default branch requires signed commits, so an unsigned one cannot land however good the change is. GitHub's [commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification) guide covers setup.
+- **The squash title must be a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)** — `type(scope): subject`, using `feat`, `fix`, `refactor`, `docs`, `build`, `ci`, `test`, or `chore`. This is load-bearing rather than stylistic: the changelog is generated from these subjects, and a title that doesn't parse is dropped from it silently rather than flagged.
