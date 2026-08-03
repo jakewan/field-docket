@@ -16,9 +16,16 @@ paths:
 
 Local development and CI must run the same tool versions and the same formatters. When they drift, a change passes locally and fails in CI (or the reverse), or CI silently tests a different Go than developers run. These invariants are coupled across the files this rule conditions on — editing one file without its partner reintroduces the drift.
 
-## golangci-lint version is one atomic value
+## A tool pinned in both mise.toml and a workflow is one atomic value
 
-The `golangci-lint` version is pinned in two places: `mise.toml` (the local binary) and the `golangci-lint-action` `version:` in `.github/workflows/ci.yml` (the CI binary). They must be identical. A config written for one minor can warn or error on another, so a mismatch means lint passes locally and fails in CI, or vice versa. When bumping, change both in the same commit.
+Some tools are pinned twice — in `mise.toml` (the local binary) and as an action's `version:` input (the CI binary). Each pair must be identical, and a bump moves both in the same commit:
+
+- **golangci-lint** — `mise.toml` and the `golangci-lint-action` `version:` in `.github/workflows/ci.yml`. A config written for one minor can warn or error on another, so a mismatch means lint passes locally and fails in CI, or vice versa.
+- **GoReleaser** — `mise.toml` and the `goreleaser-action` `version:` in both `.github/workflows/ci.yml` and `.github/workflows/release.yml`. This is the tool that builds and signs published artifacts, so a floating range means `just release-check` validates against a different binary than the one that ships. `SECURITY.md` also asserts that CI pins it from an explicit `version:` input, which a range form would falsify.
+
+The two forms differ, and that is not drift: mise takes a bare patch, the actions take the same patch with a leading `v`, and passing mise's form to an action is rejected as a malformed version string.
+
+**Dependabot bumps an action's `uses:` SHA, never its inputs.** So no bot maintains either CI-side value. Both ride the weekly `toolchain-report` job, which fails when a `mise.toml` pin falls behind — and moving the workflow's value to match is a manual step that failure is the only prompt for.
 
 ## go.mod `go` directive tracks the mise Go pin
 

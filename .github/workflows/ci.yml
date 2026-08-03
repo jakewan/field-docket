@@ -117,11 +117,14 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Pinned to the v2 line via the action's documented range form.
+      # Exact-pinned to match the goreleaser pin in mise.toml, so the binary
+      # that validates the release config here is the one `just release-check`
+      # runs locally. The action's fixed-version form takes the leading v that
+      # mise's does not; a bare patch is rejected as a malformed version string.
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           install-only: true
-          version: "~> v2"
+          version: "v2.17.1"
 
       - run: goreleaser check
 
