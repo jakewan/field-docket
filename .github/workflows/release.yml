@@ -49,8 +49,11 @@ jobs:
 
       # Release notes come from the CHANGELOG.md section for this tag — the
       # single source of truth (git-cliff writes it at release prep). Start after
-      # the matched header; stop at the next section heading or the first
-      # link-reference line, so the trailing [x.y.z]: refs are not swept in.
+      # the matched header; stop at the next section heading. The link-reference
+      # branch is defensive rather than load-bearing: git-cliff's template emits
+      # no [x.y.z]: refs and CHANGELOG.md carries none today, but the Keep a
+      # Changelog format this file follows conventionally ends with them, so the
+      # branch is there for the day someone adds them by hand.
       # Kept out of the checkout: GoReleaser's validate pipe aborts a release
       # when `git status --porcelain` reports anything, and an untracked file
       # counts (GoReleaser's dirty-state error reference). Staging the notes in
