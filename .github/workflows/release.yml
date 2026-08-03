@@ -49,6 +49,12 @@ jobs:
       # single source of truth (git-cliff writes it at release prep). Start after
       # the matched header; stop at the next section heading or the first
       # link-reference line, so the trailing [x.y.z]: refs are not swept in.
+      # Kept out of the checkout: GoReleaser's validate pipe aborts a release
+      # when `git status --porcelain` reports anything, and an untracked file
+      # counts (GoReleaser's dirty-state error reference). Staging the notes in
+      # the work tree would abort the release after `goreleaser check` had
+      # already passed. If GoReleaser stopped treating untracked files as dirty,
+      # this indirection would become unnecessary rather than wrong.
       - name: Extract release notes
         run: |
           version="${GITHUB_REF_NAME#v}"
@@ -57,14 +63,14 @@ jobs:
             capture && /^## / { exit }
             capture && /^\[.*\]:/ { exit }
             capture { print }
-          ' CHANGELOG.md | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba}' > RELEASE_NOTES.md
-          if [ ! -s RELEASE_NOTES.md ]; then
+          ' CHANGELOG.md | sed -e '/./,$!d' | sed -e ':a' -e '/^\n*$/{$d;N;ba}' > "$RUNNER_TEMP/RELEASE_NOTES.md"
+          if [ ! -s "$RUNNER_TEMP/RELEASE_NOTES.md" ]; then
             echo "::error::No release notes found for $GITHUB_REF_NAME in CHANGELOG.md"
             exit 1
           fi
 
       - name: Release
-        run: goreleaser release --clean --release-notes=RELEASE_NOTES.md
+        run: goreleaser release --clean --release-notes="$RUNNER_TEMP/RELEASE_NOTES.md"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
