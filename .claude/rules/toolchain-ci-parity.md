@@ -23,9 +23,9 @@ Some tools are pinned twice — in `mise.toml` (the local binary) and as an acti
 - **golangci-lint** — `mise.toml` and the `golangci-lint-action` `version:` in `.github/workflows/ci.yml`. A config written for one minor can warn or error on another, so a mismatch means lint passes locally and fails in CI, or vice versa.
 - **GoReleaser** — `mise.toml` and the `goreleaser-action` `version:` in both `.github/workflows/ci.yml` and `.github/workflows/release.yml`. This is the tool that builds and signs published artifacts, so a floating range means `just release-check` validates against a different binary than the one that ships. `SECURITY.md` also asserts that CI pins it from an explicit `version:` input, which a range form would falsify.
 
-The two forms differ, and that is not drift: mise takes a bare patch, the actions take the same patch with a leading `v`, and passing mise's form to an action is rejected as a malformed version string.
+The two spellings differ and that is not drift: mise pins a bare patch, both workflow inputs carry the same patch with a leading `v`. Only one of the two actions actually requires it — `golangci-lint-action` validates its input against a `v`-anchored pattern and throws on a bare patch, while `goreleaser-action` accepts either and prepends the `v` itself (read from each action's source at the SHA pinned here; if either changed, the symptom would be a loud failure at install rather than a wrong binary). Matching the two keeps one convention rather than two.
 
-**Dependabot bumps an action's `uses:` SHA, never its inputs.** So no bot maintains either CI-side value. Both ride the weekly `toolchain-report` job, which fails when a `mise.toml` pin falls behind — and moving the workflow's value to match is a manual step that failure is the only prompt for.
+**Nothing detects a mismatch between a `mise.toml` pin and its workflow input.** Dependabot bumps an action's `uses:` SHA, never its inputs, and the weekly `toolchain-report` job reads `mise.toml` alone — so bumping the mise pin and forgetting the workflow leaves that report green the following week while the drift stands. The report prompts the bump; nothing prompts the other half of it. Review is the only guard, which is why this is written down rather than left to a gate.
 
 ## go.mod `go` directive tracks the mise Go pin
 

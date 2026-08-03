@@ -35,8 +35,8 @@ jobs:
       # install-only so the steps below can call goreleaser directly. Exact-pinned
       # to match the goreleaser pin in mise.toml, so the binary that builds and
       # signs a published release is the one release-check exercised locally. The
-      # action's fixed-version form takes the leading v that mise's does not; a
-      # bare patch is rejected as a malformed version string.
+      # leading v is the shared form for an action version input; mise pins the
+      # same patch bare. See the parity rule for why both spellings stand.
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           install-only: true
@@ -49,11 +49,10 @@ jobs:
 
       # Release notes come from the CHANGELOG.md section for this tag — the
       # single source of truth (git-cliff writes it at release prep). Start after
-      # the matched header; stop at the next section heading. The link-reference
-      # branch is defensive rather than load-bearing: git-cliff's template emits
-      # no [x.y.z]: refs and CHANGELOG.md carries none today, but the Keep a
-      # Changelog format this file follows conventionally ends with them, so the
-      # branch is there for the day someone adds them by hand.
+      # the matched header; stop at the next section heading, or at a
+      # link-reference line — the Keep a Changelog format this file follows
+      # conventionally ends with trailing [x.y.z]: refs, and they must not be
+      # swept into the notes.
       # Kept out of the checkout: GoReleaser's validate pipe aborts a release
       # when `git status --porcelain` reports anything, and an untracked file
       # counts (GoReleaser's dirty-state error reference). Staging the notes in

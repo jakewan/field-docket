@@ -44,7 +44,8 @@ just build              # Build binary to bin/
 just test               # Run all tests
 just test-race          # Run all tests under the race detector (what CI runs)
 just lint               # Run golangci-lint
-just fmt                # Apply the formatters CI enforces (the pre-commit hook runs this)
+just fmt                # Apply the formatters CI enforces, across the tree
+just changelog          # Preview the unreleased changelog section
 just vuln               # Scan dependencies and stdlib for known vulnerabilities
 just tidy-check         # Fail if go.mod/go.sum are not tidy
 just release-check      # Validate release config and dry-run a snapshot build
@@ -84,7 +85,7 @@ Write **field-docket** in lowercase throughout — it is the binary, the Go modu
 - PRs are squash-merged, so commit history within a branch doesn't need to be pristine.
 - This project merges, never rebases.
 
-Two requirements are enforced rather than advisory, and both are easier to know about up front than to discover from a rejected push:
+Two things are easier to know up front than to discover afterward. They fail in opposite ways — one loudly, one silently:
 
-- **Commits must be signed.** The default branch requires signed commits, so an unsigned one cannot land however good the change is. GitHub's [commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification) guide covers setup.
-- **The squash title must be a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)** — `type(scope): subject`, using `feat`, `fix`, `refactor`, `docs`, `build`, `ci`, `test`, or `chore`. This is load-bearing rather than stylistic: the changelog is generated from these subjects, and a title that doesn't parse is dropped from it silently rather than flagged.
+- **Commits must be signed**, and this one is enforced. The default-branch ruleset requires signed commits with no bypass, so an unsigned commit cannot land however good the change is. GitHub's [commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification) guide covers setup. You find out by being refused.
+- **The squash title should be a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)** — `type(scope): subject`, using `feat`, `fix`, `refactor`, `docs`, `build`, `ci`, `test`, or `chore`. Nothing checks this, which is exactly why it is worth stating: `feat`, `fix`, and `refactor` subjects become changelog entries at release prep, the rest are deliberately skipped, and a title that parses as none of them is filtered out with no warning. You find out by noticing something missing, months later.

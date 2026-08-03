@@ -117,10 +117,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      # Exact-pinned to match the goreleaser pin in mise.toml, so the binary
-      # that validates the release config here is the one `just release-check`
-      # runs locally. The action's fixed-version form takes the leading v that
-      # mise's does not; a bare patch is rejected as a malformed version string.
+      # Exact-pinned to match the goreleaser pin in mise.toml, so the binary that
+      # validates the release config here is the one `just release-check` runs
+      # locally. The leading v is the shared form for an action version input in
+      # this file; mise pins the same patch bare. Neither is wrong — see the
+      # parity rule for why both spellings stand.
       - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
         with:
           install-only: true
