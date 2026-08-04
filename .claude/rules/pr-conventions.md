@@ -53,6 +53,8 @@ Anchor each entry to its introducing PR as a trailing `(#N)`. Because the number
 
 When a PR corrects or refines the behavior of a feature still under `[Unreleased]`, amend that feature's existing entry in place rather than adding a separate `Fixed`/`Changed` line — you don't log a fix for behavior that never shipped.
 
+`CONTRIBUTING.md` § Changelog entries states these same obligations for a human contributor, who has no reason to read this file. The duplication is deliberate, so **the two move together** — a change to what requires an entry, to the categories, or to the anchor convention lands in both or in neither.
+
 ## Branch Freshness
 
 (extension point: `freshness-response-policy`)
