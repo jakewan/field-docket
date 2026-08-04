@@ -34,7 +34,7 @@ Further packages arrive when a change needs them — do not create them speculat
 Tool versions are managed by [mise](https://mise.jdx.dev/) (`mise.toml`, with checksums in the committed `mise.lock` — regenerate it with `mise lock` whenever a pin changes); tasks run through [just](https://github.com/casey/just) (`justfile`). One-time setup:
 
 ```sh
-mise install     # install pinned Go, golangci-lint, just, lefthook, goreleaser, git-cliff
+mise install     # install pinned Go, golangci-lint, just, lefthook, goreleaser
 just hooks       # install git hooks (lefthook)
 ```
 

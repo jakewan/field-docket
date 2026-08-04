@@ -79,6 +79,19 @@ Two testing constraints are specific to this project and easy to get wrong:
 
 Write **field-docket** in lowercase throughout — it is the binary, the Go module, the `mcpServers` config key, and the MCP server's machine `name`. The display title (`Field Docket`, Title Case) appears only in the MCP handshake, mirroring the convention of a lowercase machine name paired with a human-readable title.
 
+### Releases
+
+Releases are cut by hand from a pushed tag. There is no release bot and no automated version bump.
+
+**Choosing the version.** While the project is 0.x, a new feature bumps the minor, and a breaking change *also* bumps the minor rather than reaching 1.0.0. Past 1.0, a breaking change bumps the major. Worth revisiting as the project approaches 1.0.
+
+**Cutting the release:**
+
+1. `git fetch --tags` — the next two steps both need the previous tag present locally.
+2. Insert a `## [X.Y.Z] - <date>` heading into `CHANGELOG.md` directly below `## [Unreleased]`, so the accumulated entries fall under the new version heading. Leave `## [Unreleased]` in place, empty: the next contributor's entry goes under it, and the release workflow finds notes by matching the version heading.
+3. Cross-check for a forgotten entry: `git log --oneline <last-tag>..HEAD`. Conventional commit subjects are what make this scannable by type.
+4. Commit as `chore(release): vX.Y.Z`, tag, and push. The pushed `v*` tag is the release gate — it builds, signs, attests, and publishes.
+
 ## Pull Requests
 
 - Keep PRs small and focused — each PR should serve a single purpose.
@@ -88,4 +101,21 @@ Write **field-docket** in lowercase throughout — it is the binary, the Go modu
 Two things are easier to know up front than to discover afterward. They fail in opposite ways — one loudly, one silently:
 
 - **Commits must be signed**, and this one is enforced. The default-branch ruleset requires signed commits with no bypass, so an unsigned commit cannot land however good the change is. GitHub's [commit signature verification](https://docs.github.com/en/authentication/managing-commit-signature-verification) guide covers setup. You find out by being refused.
-- **The squash title should be a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)** — `type(scope): subject`, using `feat`, `fix`, `refactor`, `docs`, `build`, `ci`, `test`, or `chore`. Nothing checks this, which is exactly why it is worth stating: `feat`, `fix`, and `refactor` subjects become changelog entries at release prep, the rest are deliberately skipped, and a title that parses as none of them is filtered out with no warning. You find out by noticing something missing, months later.
+- **The squash title should be a [Conventional Commit](https://www.conventionalcommits.org/en/v1.0.0/)** — `type(scope): subject`, using `feat`, `fix`, `refactor`, `docs`, `build`, `ci`, `test`, or `chore`. Nothing checks this, which is exactly why it is worth stating: cutting a release involves scanning `git log --oneline` for changes that should have a changelog entry, and a title parsing as none of these turns that scan from a filter by type into a read of every line. You find out at release time, when the scan is harder than it should be.
+
+### Changelog entries
+
+A PR that makes a **user-facing change** needs an entry in `CHANGELOG.md`. User-facing means:
+
+- New, changed, or removed MCP tools.
+- Observable behavior changes — what is refused, what is returned, output shape.
+- **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
+- Bug fixes that affect user-visible results.
+- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and weekly, so an advisory it stops reporting across a bump is the signal.
+- Config-format changes.
+
+No entry is needed for internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
+
+Add the entry under `## [Unreleased]` in the matching category — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security` — and keep it concise, user-facing, and present-tense. Anchor it to its introducing PR as a trailing `(#N)`. Because that number isn't known until the PR exists, author the entry with the tracking-issue number and correct it once the PR is open.
+
+When a PR corrects or refines the behavior of a feature still under `## [Unreleased]`, amend that feature's existing entry in place rather than adding a separate `Fixed` or `Changed` line — you don't log a fix for behavior that never shipped.

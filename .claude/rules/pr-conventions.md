@@ -34,7 +34,7 @@ Conventional Commits: `type(scope): subject`.
 
 (extension point: `changelog-convention`)
 
-This project keeps a changelog in `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). `git cliff` generates it at release prep from Conventional Commit subjects and bodies (`just changelog` previews the unreleased section), so a commit message's body is what a changelog reader eventually sees — write it accordingly.
+This project keeps a changelog in `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is written by hand, entry by entry, as part of the PR making the change — nothing generates it from commit history. At release prep a `## [X.Y.Z]` heading is inserted directly below `## [Unreleased]` so the accumulated entries fall under it, which is how the release workflow locates the notes for a tag; `CONTRIBUTING.md` carries the full release ritual.
 
 A PR requires a changelog entry when it makes a **user-facing change**:
 
@@ -42,6 +42,7 @@ A PR requires a changelog entry when it makes a **user-facing change**:
 - Observable behavior changes (what is refused, what is returned, output shape).
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
+- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and weekly, so an advisory it stops reporting across a bump is the signal — a reader scanning a changelog for security-relevant releases has nowhere else to look.
 - Config-format changes.
 
 No entry is needed for: internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
