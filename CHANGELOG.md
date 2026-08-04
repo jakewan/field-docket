@@ -17,3 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Report a build-stamped version to connecting MCP clients, derived from the release tag at build time (an untagged build reports `dev`). (#1)
 - Exit cleanly (status 0) when the connected client disconnects, treating the normal end of a session as success rather than as an error. (#1)
 - Refuse an unrecognized command-line argument instead of starting the server. A mistyped `snapshot` does not match the subcommand, so accepting the leftover argument would run a server that does nothing the operator asked for and report no problem. (#1)
+
+### Changed
+
+- Speak MCP protocol version `2026-07-28` when a client negotiates it; clients on earlier versions are unaffected. The recording client's name reaches the server differently under it — through per-request metadata rather than the `initialize` handshake — and that metadata makes the name optional where the handshake required it. An observation recorded by a client that omits it therefore carries an empty client name, which is a conforming client rather than a broken one. Because the store is append-only, this is a permanent seam: whether an empty name means "not supplied" or "not required" depends on which side of it the observation falls. (#2)

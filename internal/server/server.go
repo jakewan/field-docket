@@ -101,9 +101,9 @@ func New(st *store.Store) *mcp.Server {
 // panics applying a schema default into it, tearing down the session over
 // non-conforming-but-harmless input. The SDK allocates the map and then
 // overwrites it: it guards on len(data) > 0, and the literal "null" is four
-// bytes, so it passes that guard and unmarshalling nils the map (go-sdk@v1.6.1
+// bytes, so it passes that guard and unmarshalling nils the map (go-sdk
 // mcp/tool.go, applySchema). jsonschema-go then writes into it via reflect
-// SetMapIndex (jsonschema-go@v0.4.3 jsonschema/validate.go:741).
+// SetMapIndex (jsonschema-go jsonschema/validate.go, applyDefaults).
 //
 // Note the absent and literal-null cases differ: with arguments omitted the map
 // stays non-nil and defaults apply cleanly, which is why a test that only omits
@@ -125,15 +125,24 @@ func tolerateNullArguments(next mcp.MethodHandler) mcp.MethodHandler {
 	}
 }
 
-// clientName reports the recording client's name from the initialize handshake,
-// or "" when the peer did not supply one.
+// clientName reports the recording client's name as the peer supplied it, or ""
+// when it did not.
 //
 // Derived rather than accepted as input: the caller cannot get it wrong or omit
-// it, and it is one fewer field in the tool contract. Both hops are guarded
-// because both are nilable — the SDK guards InitializeParams the same way in its
-// own code — and an unguarded chain would panic on a client that skipped or
-// malformed the handshake, which is the failure class tolerateNullArguments
-// exists to prevent.
+// it, and it is one fewer field in the tool contract.
+//
+// Where the name comes from depends on the negotiated protocol version: the
+// initialize handshake through 2025-11-25, which requires clientInfo, and
+// per-request _meta from 2026-07-28, where that handshake no longer exists and
+// the SDK synthesises InitializeParams from the metadata instead (go-sdk
+// mcp/shared.go, validateRequestMeta). clientInfo is optional there, so an
+// absent name is a conforming peer on the newer protocol rather than only a
+// malformed one.
+//
+// Both hops are guarded because both are nilable — the SDK guards
+// InitializeParams the same way in its own code — and an unguarded chain would
+// panic on a client that skipped or malformed the handshake, which is the
+// failure class tolerateNullArguments exists to prevent.
 func clientName(req *mcp.CallToolRequest) string {
 	if req == nil || req.Session == nil {
 		return ""
