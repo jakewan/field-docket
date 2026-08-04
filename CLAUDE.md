@@ -34,7 +34,7 @@ Further packages arrive when a change needs them — do not create them speculat
 Tool versions are managed by [mise](https://mise.jdx.dev/) (`mise.toml`, with checksums in the committed `mise.lock` — regenerate it with `mise lock` whenever a pin changes); tasks run through [just](https://github.com/casey/just) (`justfile`). One-time setup:
 
 ```sh
-mise install     # install pinned Go, golangci-lint, just, lefthook, goreleaser, git-cliff
+mise install     # install pinned Go, golangci-lint, just, lefthook, goreleaser
 just hooks       # install git hooks (lefthook)
 ```
 
@@ -82,7 +82,7 @@ Go authoring conventions are in `.claude/rules/go-practices.md` (loaded when Cla
 - `.claude/rules/github-actions-pinning.md` — pin every action to a commit SHA (loaded when Claude reads a workflow).
 - `.claude/rules/design-fork-adjudication.md` — how value-laden design forks are settled here.
 - `README.md` — what the tool is, its tool surface, storage properties, and install.
-- `CONTRIBUTING.md` — contributor setup, scope, and PR posture.
+- `CONTRIBUTING.md` — contributor setup, scope, PR posture, the changelog-entry obligation, and the release ritual with its semver policy.
 - `SECURITY.md` — reporting channel, plus the data-handling, supply-chain, and release claims. It asserts the store's permissions, durability, and redaction path, so a change to `internal/store/` should be checked against it; it also asserts what CI scans, pins, and verifies, so a change to the workflows, `mise.lock`, or the Dependabot config should be checked against it too.
 - `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1, with conduct reports routed the same way security reports are.
 - `.github/copilot-instructions.md` — review guidance for GitHub Copilot.

@@ -55,10 +55,10 @@ signs:
     artifacts: checksum
     output: true
 
-# git-cliff owns the changelog (generated at release prep, committed to
-# CHANGELOG.md), so GoReleaser must not generate release notes of its own. The
-# workflow's --release-notes is what stops it: GoReleaser's changelog pipe loads
-# the supplied file and returns before generating anything.
+# CHANGELOG.md is written by hand and is the single source of release notes, so
+# GoReleaser must not generate notes of its own. The workflow's --release-notes
+# is what stops it: GoReleaser's changelog pipe loads the supplied file and
+# returns before generating anything.
 #
 # Do not reach for `changelog.disable` to express that intent. It skips the pipe
 # outright, which discards --release-notes with it and publishes a release with

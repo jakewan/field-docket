@@ -78,10 +78,6 @@ vuln:
 toolchain-outdated:
     mise outdated --bump --local
 
-# Preview the unreleased changelog section, to review and polish before a release
-changelog:
-    git cliff --unreleased
-
 # Validate release config and dry-run a snapshot build (mirrors the CI gate).
 # --snapshot skips cosign signing and never runs provenance (CI-only, OIDC-bound),
 # so this proves the build, not the hardening. --single-target keeps the local

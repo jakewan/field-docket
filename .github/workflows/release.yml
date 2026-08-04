@@ -48,11 +48,11 @@ jobs:
         run: goreleaser check
 
       # Release notes come from the CHANGELOG.md section for this tag — the
-      # single source of truth (git-cliff writes it at release prep). Start after
-      # the matched header; stop at the next section heading, or at a
-      # link-reference line — the Keep a Changelog format this file follows
-      # conventionally ends with trailing [x.y.z]: refs, and they must not be
-      # swept into the notes.
+      # single source of truth, written by hand and given its version heading at
+      # release prep. Start after the matched header; stop at the next section
+      # heading, or at a link-reference line — the Keep a Changelog format this
+      # file follows conventionally ends with trailing [x.y.z]: refs, and they
+      # must not be swept into the notes.
       # Kept out of the checkout: GoReleaser's validate pipe aborts a release
       # when `git status --porcelain` reports anything, and an untracked file
       # counts (GoReleaser's dirty-state error reference). Staging the notes in

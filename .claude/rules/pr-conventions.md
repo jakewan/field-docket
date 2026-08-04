@@ -34,7 +34,7 @@ Conventional Commits: `type(scope): subject`.
 
 (extension point: `changelog-convention`)
 
-This project keeps a changelog in `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). `git cliff` generates it at release prep from Conventional Commit subjects and bodies (`just changelog` previews the unreleased section), so a commit message's body is what a changelog reader eventually sees — write it accordingly.
+This project keeps a changelog in `CHANGELOG.md` following [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and [Semantic Versioning](https://semver.org/spec/v2.0.0.html). It is written by hand, entry by entry, as part of the PR making the change — nothing generates it from commit history. At release prep a `## [X.Y.Z]` heading is inserted directly below `## [Unreleased]` so the accumulated entries fall under it, which is how the release workflow locates the notes for a tag; `CONTRIBUTING.md` carries the full release ritual.
 
 A PR requires a changelog entry when it makes a **user-facing change**:
 
@@ -42,6 +42,7 @@ A PR requires a changelog entry when it makes a **user-facing change**:
 - Observable behavior changes (what is refused, what is returned, output shape).
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
+- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal — a reader scanning a changelog for security-relevant releases has no other single place to look.
 - Config-format changes.
 
 No entry is needed for: internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
@@ -51,6 +52,8 @@ Add the entry under `## [Unreleased]` in the matching category — `Added`, `Cha
 Anchor each entry to its introducing PR as a trailing `(#N)`. Because the number isn't known until the PR exists, the entry can be authored with the tracking-issue number and corrected to the PR number once it's created.
 
 When a PR corrects or refines the behavior of a feature still under `[Unreleased]`, amend that feature's existing entry in place rather than adding a separate `Fixed`/`Changed` line — you don't log a fix for behavior that never shipped.
+
+These obligations are deliberately stated in two other places: `CONTRIBUTING.md` § Changelog entries carries them for a human contributor, who is not expected to read this file, and `.github/copilot-instructions.md` § Reviewing changelog changes carries the subset an automated reviewer enforces. **All three move together** — a change to what requires an entry, to the categories, or to the anchor convention lands in every one of them or in none.
 
 ## Branch Freshness
 

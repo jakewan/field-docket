@@ -59,10 +59,11 @@ In priority order:
 
 ## Reviewing changelog changes
 
-field-docket keeps a `CHANGELOG.md` in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. Two conventions are recurring false-positive sources:
+field-docket keeps a `CHANGELOG.md` in [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format, written by hand as part of the PR making the change rather than generated from commit history. Two conventions are recurring false-positive sources:
 
 - **The trailing `(#N)` anchor is the introducing PR number, not the issue.** Do not flag an entry that closes issues `#A`/`#B` for anchoring to the PR number — that is the intended convention.
 - **A schema or normalization change always requires an entry**, even when it looks internal. The store is append-only, so a normalization change partitions the record permanently; a reader needs to know where the seam is. Flag a missing entry for one.
+- **A dependency bump that resolves a known advisory requires an entry** under `Security`. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is what identifies one. Flag a missing entry for it — a bump's author is often automation that reads none of this, so review is where the obligation actually lands.
 
 ## Personal-details check
 

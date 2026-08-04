@@ -12,12 +12,11 @@ go = "1.26.5"
 golangci-lint = "2.12.2"
 just = "1.57.0"
 lefthook = "2.1.10"
-# goreleaser and git-cliff back `just release-check` and `just changelog`. They
-# are pinned here rather than assumed present because the release path is
-# reachable locally, not only from the tag workflow.
+# goreleaser backs `just release-check`. It is pinned here rather than assumed
+# present because the release path is reachable locally, not only from the tag
+# workflow.
 #
 # The goreleaser pin is duplicated into the goreleaser-action `version:` in both
 # the CI and release workflows — treat all three as one atomic value, as with
 # golangci-lint above. Nothing detects a mismatch.
 goreleaser = "2.17.1"
-git-cliff = "2.13.1"
