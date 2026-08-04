@@ -46,7 +46,6 @@ jobs:
               - '**/*.go'
               - 'go.mod'
               - '.goreleaser.yaml'
-              - 'cliff.toml'
               - '.github/workflows/release.yml'
               - '.github/workflows/ci.yml'
 

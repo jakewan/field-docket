@@ -29,7 +29,7 @@ Contributions should stay within this focused scope. If you're unsure whether so
 Tool versions are managed by [mise](https://mise.jdx.dev/). After cloning:
 
 ```bash
-mise install        # Install Go, golangci-lint, just, lefthook, goreleaser, git-cliff
+mise install        # Install Go, golangci-lint, just, lefthook, goreleaser
 just hooks          # Install git hooks (lefthook)
 ```
 
@@ -45,7 +45,6 @@ just test               # Run all tests
 just test-race          # Run all tests under the race detector (what CI runs)
 just lint               # Run golangci-lint
 just fmt                # Apply the formatters CI enforces, across the tree
-just changelog          # Preview the unreleased changelog section
 just vuln               # Scan dependencies and stdlib for known vulnerabilities
 just tidy-check         # Fail if go.mod/go.sum are not tidy
 just release-check      # Validate release config and dry-run a snapshot build
