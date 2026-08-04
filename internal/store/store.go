@@ -153,8 +153,8 @@ func WithClock(now func() time.Time) Option {
 // The pragmas are carried in the DSN rather than executed after sql.Open so the
 // driver applies them to every pooled connection as it is created, and because
 // the driver sorts busy_timeout to the front of the list — arming the busy
-// handler before journal_mode runs (modernc.org/sqlite@v1.53.0 sqlite.go:217,
-// "Push 'busy_timeout' first"). That ordering matters on a cold start, where
+// handler before journal_mode runs (modernc.org/sqlite sqlite.go, "Push
+// 'busy_timeout' first"). That ordering matters on a cold start, where
 // several processes can race to flip a brand-new file into WAL and the loser
 // needs to wait rather than fail. If the driver ever stopped sorting, a cold
 // start under contention would fail outright rather than wait — loudly, not
@@ -188,11 +188,11 @@ func dsn(path string, writable bool) string {
 //
 // _txlock=immediate is on the write handle only. The driver consumes it in
 // exactly one place — the BeginTx path, gated on the transaction not being
-// read-only (modernc.org/sqlite@v1.53.0 tx.go:19-25, the sole reader of
-// beginMode) — so it governs the migration transaction and nothing else. An
-// autocommit INSERT never reaches that path; it takes the write lock directly,
-// so the deferred-lock-upgrade hazard the parameter exists to avoid does not
-// arise on the record path at all. Putting it on the read handle would be
+// read-only (modernc.org/sqlite tx.go, newTx — the sole reader of beginMode) —
+// so it governs the migration transaction and nothing else. An autocommit
+// INSERT never reaches that path; it takes the write lock directly, so the
+// deferred-lock-upgrade hazard the parameter exists to avoid does not arise on
+// the record path at all. Putting it on the read handle would be
 // actively harmful: any read transaction would then issue BEGIN IMMEDIATE, take
 // a write lock, and serialise reviews against records — the opposite of what
 // WAL is here to provide.
