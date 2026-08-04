@@ -86,10 +86,12 @@ Releases are cut by hand from a pushed tag. There is no release bot and no autom
 
 **Cutting the release:**
 
-1. `git fetch --tags` — the next two steps both need the previous tag present locally.
-2. Insert a `## [X.Y.Z] - <date>` heading into `CHANGELOG.md` directly below `## [Unreleased]`, so the accumulated entries fall under the new version heading. Leave `## [Unreleased]` in place, empty: the next contributor's entry goes under it, and the release workflow finds notes by matching the version heading.
-3. Cross-check for a forgotten entry: `git log --oneline <last-tag>..HEAD`. Conventional commit subjects are what make this scannable by type.
+1. `git fetch --tags` — the cross-check below needs the previous tag present locally.
+2. Cross-check for a forgotten entry: `git log --oneline <last-tag>..HEAD`, and add anything missing under `## [Unreleased]`. For the first release there is no previous tag, so read `git log --oneline` over the whole history instead — the range form with an empty left side returns nothing and exits 0, which reads as "nothing was forgotten" when it means "nothing was examined". Conventional commit subjects are what make this scannable by type.
+3. Insert a `## [X.Y.Z] - YYYY-MM-DD` heading into `CHANGELOG.md` directly below `## [Unreleased]`, so the accumulated entries fall under the new version heading. The release workflow locates the notes by matching that heading against the tag with its leading `v` stripped, so write `## [0.1.0]` rather than `## [v0.1.0]`. Leave `## [Unreleased]` in place, empty: the next contributor's entry goes under it.
 4. Commit as `chore(release): vX.Y.Z`, tag, and push. The pushed `v*` tag is the release gate — it builds, signs, attests, and publishes.
+
+Cross-checking before inserting the heading is what keeps a recovered entry in the release it describes. Insert first and `## [Unreleased]` is already the *next* release's section, so anything filed there per the convention below silently ships one release late.
 
 ## Pull Requests
 
@@ -110,7 +112,7 @@ A PR that makes a **user-facing change** needs an entry in `CHANGELOG.md`. User-
 - Observable behavior changes — what is refused, what is returned, output shape.
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
-- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and weekly, so an advisory it stops reporting across a bump is the signal.
+- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal.
 - Config-format changes.
 
 No entry is needed for internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
@@ -118,3 +120,5 @@ No entry is needed for internal refactors with no observable effect, test-only c
 Add the entry under `## [Unreleased]` in the matching category — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or `Security` — and keep it concise, user-facing, and present-tense. Anchor it to its introducing PR as a trailing `(#N)`. Because that number isn't known until the PR exists, author the entry with the tracking-issue number and correct it once the PR is open.
 
 When a PR corrects or refines the behavior of a feature still under `## [Unreleased]`, amend that feature's existing entry in place rather than adding a separate `Fixed` or `Changed` line — you don't log a fix for behavior that never shipped.
+
+The same obligations are stated for tooling in `.claude/rules/pr-conventions.md` and `.github/copilot-instructions.md`, so a change to what requires an entry, to the categories, or to the anchor convention lands in all three or in none.

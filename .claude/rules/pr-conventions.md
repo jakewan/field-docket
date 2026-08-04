@@ -42,7 +42,7 @@ A PR requires a changelog entry when it makes a **user-facing change**:
 - Observable behavior changes (what is refused, what is returned, output shape).
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
-- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and weekly, so an advisory it stops reporting across a bump is the signal — a reader scanning a changelog for security-relevant releases has nowhere else to look.
+- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal — a reader scanning a changelog for security-relevant releases has no other single place to look.
 - Config-format changes.
 
 No entry is needed for: internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
@@ -53,7 +53,7 @@ Anchor each entry to its introducing PR as a trailing `(#N)`. Because the number
 
 When a PR corrects or refines the behavior of a feature still under `[Unreleased]`, amend that feature's existing entry in place rather than adding a separate `Fixed`/`Changed` line — you don't log a fix for behavior that never shipped.
 
-`CONTRIBUTING.md` § Changelog entries states these same obligations for a human contributor, who has no reason to read this file. The duplication is deliberate, so **the two move together** — a change to what requires an entry, to the categories, or to the anchor convention lands in both or in neither.
+These obligations are deliberately stated in two other places: `CONTRIBUTING.md` § Changelog entries carries them for a human contributor, who is not expected to read this file, and `.github/copilot-instructions.md` § Reviewing changelog changes carries the subset an automated reviewer enforces. **All three move together** — a change to what requires an entry, to the categories, or to the anchor convention lands in every one of them or in none.
 
 ## Branch Freshness
 
