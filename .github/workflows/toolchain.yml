@@ -1,51 +1,38 @@
 name: Toolchain currency
 
-# Separate from the vulnerability scan on purpose. This workflow reports that a
-# pin trails upstream, which is routine; that one reports an advisory, which is
-# not. A failure notification carries the workflow name and not the job name, so
-# running both under one name would leave a red result meaning either thing —
-# and the scheduled run, where neither has a push-driven backstop, is exactly
-# where that ambiguity costs the most.
+# Separate from the vulnerability scan on purpose. That workflow reports an
+# advisory; this one reports that a pin trails upstream, which is routine — and
+# GitHub's Actions run list identifies a run by its workflow, so one workflow
+# carrying both would leave a red result meaning either thing. If a failure
+# notification turns out to name the job as well, the split still buys a
+# legible run history and costs nothing.
 on:
   schedule:
-    # Weekly. GitHub disables scheduled workflows after 60 days without
-    # *repository* activity — one clock covering every scheduled workflow here,
-    # not one per workflow — so a long-quiet repository stops reporting
-    # silently. Read a gap in these runs as a symptom, not as a clean report.
+    # Weekly. Scheduled workflows here stop firing in a quiet repository —
+    # SECURITY.md § Build and CI supply chain carries the condition, and what a
+    # gap in these runs does and does not mean.
     - cron: "17 6 * * 1"
   workflow_dispatch:
-  # Not to run the report on pull requests — the guard below skips it — but so
-  # the file is parsed on any PR that edits it. A workflow reachable only by
-  # schedule and dispatch has no event that exercises it during development, so
-  # a malformed edit would surface as no run at all, which is indistinguishable
-  # from a quiet week. Dependabot edits this file's action pin on a green-check
-  # basis, which is the case worth catching.
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
 
-# No cancel-in-progress: a manual dispatch and the weekly cron share main's ref,
-# and cancelling the scheduled run because someone probed the report would drop
-# the run that exists to fire when nothing else does.
+# No cancel-in-progress: a manual dispatch and the weekly cron share the default
+# branch's ref, and cancelling the scheduled run because someone probed the
+# report would drop the run that exists to fire when nothing else does.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   toolchain-report:
-    # Keeps the report off pull requests while leaving the file above reachable
-    # by the pull_request trigger. Reporting on pins gates nothing a PR could
-    # act on, so a red result here would be noise on someone else's change.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Dependabot bumps the action's uses: SHA but never its version: input, so
-      # the mise release pinned here moves only when a maintainer moves it —
-      # and it is the binary that computes the report below, which makes it the
-      # one pin whose drift the report cannot surface.
+      # the mise release pinned here moves only when a maintainer moves it — and
+      # it is the binary that computes the report below, which makes it the one
+      # pin whose drift the report cannot surface.
       - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
         with:
           version: 2026.8.3
@@ -63,23 +50,30 @@ jobs:
       # which is worse than no report at all.
       #
       # The step fails when there is something to report, because `mise
-      # outdated` exits 0 whether or not a pin is behind — a step that always
-      # succeeds is a report nobody is told about. How much that failure buys
-      # depends on a setting this repository does not control: GitHub's default
-      # notifies on every completed run, and only the opt-in "Only notify for
-      # failed workflows" account option makes a red run the sole notification
-      # (see GitHub's "Notifications for workflow runs" docs). With that option
-      # off a green run notifies too, which makes the exit 1 redundant rather
-      # than wrong. Clear a red run by bumping the pins (and regenerating
-      # mise.lock), or by deciding not to. Nothing is blocked either way: this
-      # workflow is not a required check.
+      # outdated` exits 0 whether or not a pin has moved — a step that always
+      # succeeds is a report nobody is told about. How far that failure actually
+      # reaches depends on a notification setting outside this repository's
+      # control; SECURITY.md § Build and CI supply chain records the dependency.
+      # Nothing is blocked either way: this workflow is not a required check.
       - name: Report outdated toolchain pins
         # `shell: bash` adds pipefail, without which a mise failure in the
         # reporting pipeline would be masked by tee's exit status.
         shell: bash
         run: |
           mise outdated --bump --local | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$(mise outdated --bump --local --json)" != "{}" ]; then
+
+          # Captured once, and the reporter's own failure told apart from a
+          # stale pin. A failed or silent mise yields an empty substitution,
+          # which compared straight against {} would raise the pin-lag error and
+          # so name the wrong cause — the one thing this workflow exists to
+          # avoid. Testing it inside `if` is also what keeps `set -e` from
+          # exiting here with no annotation at all.
+          if ! outdated="$(mise outdated --bump --local --json)" || [ -z "$outdated" ]; then
+            echo "::error::mise could not report pin status — the reporter failed, not the pins"
+            exit 1
+          fi
+
+          if [ "$outdated" != "{}" ]; then
             echo "::error::Toolchain pins are behind upstream — review per SECURITY.md"
             exit 1
           fi

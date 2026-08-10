@@ -12,9 +12,10 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly. GitHub disables scheduled workflows after 60 days without
-    # repository activity, so a long-quiet repository stops scanning silently —
-    # read a gap in these runs as a symptom, not as an absence of findings.
+    # Weekly. Scheduled workflows here stop firing in a quiet repository, on one
+    # repository-level clock rather than one per workflow — SECURITY.md § Build
+    # and CI supply chain carries the condition, and why a gap in these runs is
+    # a symptom rather than an absence of findings.
     - cron: "17 6 * * 1"
   workflow_dispatch:
 
