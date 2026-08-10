@@ -10,7 +10,7 @@ go = "1.26.5"
 # golangci-lint-action `version:` — treat them as one atomic value so local and
 # CI lint run the same binary against the same config schema.
 golangci-lint = "2.12.2"
-just = "1.57.0"
+just = "1.58.0"
 lefthook = "2.1.10"
 # goreleaser backs `just release-check`. It is pinned here rather than assumed
 # present because the release path is reachable locally, not only from the tag

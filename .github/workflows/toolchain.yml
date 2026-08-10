@@ -1,0 +1,85 @@
+name: Toolchain currency
+
+# Separate from the vulnerability scan on purpose. That workflow reports an
+# advisory; this one reports that a pin trails upstream, which is routine — and
+# GitHub's Actions run list identifies a run by its workflow, so one workflow
+# carrying both would leave a red result meaning either thing. If a failure
+# notification turns out to name the job as well, the split still buys a
+# legible run history and costs nothing.
+on:
+  schedule:
+    # Weekly. Scheduled workflows here stop firing in a quiet repository —
+    # SECURITY.md § Build and CI supply chain carries the condition, and what a
+    # gap in these runs does and does not mean.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# No cancel-in-progress: a manual dispatch and the weekly cron share the default
+# branch's ref, and cancelling the scheduled run because someone probed the
+# report would drop the run that exists to fire when nothing else does.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  toolchain-report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Dependabot bumps the action's uses: SHA but never its version: input, so
+      # the mise release pinned here moves only when a maintainer moves it — and
+      # it is the binary that computes the report below, which makes it the one
+      # pin whose drift the report cannot surface.
+      - uses: jdx/mise-action@7e36c90d9ab29c415a2384db3006f3ec8a8cc654 # v4.2.4
+        with:
+          version: 2026.8.3
+          # Report on the pinned versions; do not install them.
+          install: false
+
+      # The mise-managed toolchain is under no update bot (no ecosystem covers
+      # mise.toml), so this run is the mechanism behind the manual review
+      # posture recorded in SECURITY.md.
+      #
+      # --bump is load-bearing. Every pin in mise.toml is an exact version, and
+      # plain `mise outdated` compares against the latest release matching the
+      # requested spec — for an exact pin, itself. Without --bump this step
+      # reports "All tools are up to date" every week regardless of upstream,
+      # which is worse than no report at all.
+      #
+      # The step fails when there is something to report, because `mise
+      # outdated` exits 0 whether or not a pin has moved — a step that always
+      # succeeds is a report nobody is told about. How far that failure actually
+      # reaches depends on a notification setting outside this repository's
+      # control; SECURITY.md § Build and CI supply chain records the dependency.
+      # Nothing is blocked either way: this workflow is not a required check.
+      - name: Report outdated toolchain pins
+        # `shell: bash` fixes the flag set (-eo pipefail) in this file rather
+        # than inheriting the platform default, so the failure semantics the
+        # guards below are written against are stated rather than assumed.
+        shell: bash
+        run: |
+          # Cosmetic: renders the report onto the run page, and deliberately not
+          # allowed to decide the step. Under errexit a mise failure here would
+          # exit before either annotation below, leaving the reporter's own
+          # breakage as the one failure this workflow cannot explain — the exact
+          # gap it exists to close. The authoritative call is the guarded one
+          # below, so a real breakage still surfaces, and surfaces named.
+          mise outdated --bump --local | tee -a "$GITHUB_STEP_SUMMARY" || true
+
+          # Decisive, and captured once so the reporter's own failure is told
+          # apart from a stale pin: a failed or silent mise yields an empty
+          # substitution, which compared straight against {} would raise the
+          # pin-lag error and so name the wrong cause. Testing it inside `if` is
+          # what keeps errexit from exiting here with no annotation at all.
+          if ! outdated="$(mise outdated --bump --local --json)" || [ -z "$outdated" ]; then
+            echo "::error::mise could not report pin status — the reporter failed, not the pins"
+            exit 1
+          fi
+
+          if [ "$outdated" != "{}" ]; then
+            echo "::error::Toolchain pins are behind upstream — review per SECURITY.md"
+            exit 1
+          fi

@@ -12,9 +12,10 @@ on:
   push:
     branches: [main]
   schedule:
-    # Weekly. GitHub disables scheduled workflows after 60 days without
-    # repository activity, so a long-quiet repository stops scanning silently —
-    # read a gap in these runs as a symptom, not as an absence of findings.
+    # Weekly. Scheduled workflows here stop firing in a quiet repository, on one
+    # repository-level clock rather than one per workflow — SECURITY.md § Build
+    # and CI supply chain carries the condition, and why a gap in these runs is
+    # a symptom rather than an absence of findings.
     - cron: "17 6 * * 1"
   workflow_dispatch:
 
@@ -43,46 +44,3 @@ jobs:
       # scan's stdlib baseline is the same version the binary is built with.
       - name: Scan dependencies and standard library
         run: go tool govulncheck ./...
-
-  # Toolchain currency is its own job and runs on schedule/dispatch only: it
-  # reports on pins rather than gating a change, so there is nothing for it to
-  # tell a pull request that the pull request could act on.
-  toolchain-report:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: jdx/mise-action@9e7f7633ff6f6d6048a9418a68d48f288f50eb14 # v4.2.3
-        with:
-          version: 2026.7.7
-          # Report on the pinned versions; do not install them.
-          install: false
-
-      # The mise-managed toolchain is under no update bot (no ecosystem covers
-      # mise.toml), so this run is the mechanism behind the manual review
-      # posture recorded in SECURITY.md.
-      #
-      # --bump is load-bearing. Every pin in mise.toml is an exact version, and
-      # plain `mise outdated` compares against the latest release matching the
-      # requested spec — for an exact pin, itself. Without --bump this step
-      # reports "All tools are up to date" every week regardless of upstream,
-      # which is worse than no report at all.
-      #
-      # The step fails when there is something to report, and that is the whole
-      # notification mechanism: `mise outdated` exits 0 either way, and GitHub
-      # notifies on failed scheduled runs and stays silent on successful ones —
-      # so a step that always succeeds is a report nobody is told about. A red
-      # weekly run is the review trigger; clear it by bumping the pins (and
-      # regenerating mise.lock), or by deciding not to. Nothing is blocked
-      # either way: this workflow is not a required check.
-      - name: Report outdated toolchain pins
-        # `shell: bash` adds pipefail, without which a mise failure in the
-        # reporting pipeline would be masked by tee's exit status.
-        shell: bash
-        run: |
-          mise outdated --bump --local | tee -a "$GITHUB_STEP_SUMMARY"
-          if [ "$(mise outdated --bump --local --json)" != "{}" ]; then
-            echo "::error::Toolchain pins are behind upstream — review per SECURITY.md"
-            exit 1
-          fi
