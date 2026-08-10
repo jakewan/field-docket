@@ -71,15 +71,51 @@ jobs:
 
           # Decisive, and captured once so the reporter's own failure is told
           # apart from a stale pin: a failed or silent mise yields an empty
-          # substitution, which compared straight against {} would raise the
-          # pin-lag error and so name the wrong cause. Testing it inside `if` is
-          # what keeps errexit from exiting here with no annotation at all.
+          # substitution, and an empty result must never be read as a verdict
+          # about the pins. Testing it inside `if` is what keeps errexit from
+          # exiting here with no annotation at all.
           if ! outdated="$(mise outdated --bump --local --json)" || [ -z "$outdated" ]; then
             echo "::error::mise could not report pin status — the reporter failed, not the pins"
             exit 1
           fi
 
-          if [ "$outdated" != "{}" ]; then
+          # Every jq call is guarded, and each names its own failure. Unguarded,
+          # jq would exit under errexit with no annotation; sharing one message
+          # would name the wrong cause. Both are the bare and misattributed
+          # exits this step exists to never produce.
+          if ! count="$(jq -r 'length' <<<"$outdated")"; then
+            echo "::error::jq could not process mise's output — the reporter failed, not the pins"
+            exit 1
+          fi
+
+          # A verdict is only readable from a payload that describes the pins.
+          # Reporting without installing means mise emits an entry per pinned
+          # tool, so nothing to count is the reporter having seen nothing — an
+          # unreachable or renamed mise.toml, say — rather than a clean bill.
+          # This is the direction that must fail loudly: a green run notifies
+          # no one, so a report gone blind would stay that way indefinitely.
+          if [ "$count" -eq 0 ]; then
+            echo "::error::mise reported no pinned tools — the reporter failed, not the pins"
+            exit 1
+          fi
+
+          # Keyed on bump rather than on the payload being empty, because the
+          # shape of --json depends on installation state: reporting without
+          # installing yields an entry per tool carrying a null bump, which
+          # makes an emptiness test true on every run. bump is non-null exactly
+          # when a pin trails upstream, in either state — verified against the
+          # mise release pinned above, which is where to re-check it. The count
+          # guard does not cover a renamed or dropped bump: entries would still
+          # be present, jq would match none of them, and the report would go
+          # quiet. So a run that stops failing across a mise upgrade is the
+          # symptom to distrust.
+          if ! behind="$(jq -r 'to_entries[] | select(.value.bump != null) | "\(.key) \(.value.requested) -> \(.value.bump)"' <<<"$outdated")"; then
+            echo "::error::jq could not process mise's output — the reporter failed, not the pins"
+            exit 1
+          fi
+
+          if [ -n "$behind" ]; then
             echo "::error::Toolchain pins are behind upstream — review per SECURITY.md"
+            printf '%s\n' "$behind"
             exit 1
           fi
