@@ -8,6 +8,7 @@ paths:
   - ".goreleaser.yaml"
   - ".github/workflows/ci.yml"
   - ".github/workflows/vuln.yml"
+  - ".github/workflows/toolchain.yml"
   - ".github/workflows/release.yml"
   - "justfile"
 ---
@@ -25,7 +26,7 @@ Some tools are pinned twice — in `mise.toml` (the local binary) and as an acti
 
 The two spellings differ and that is not drift: mise pins a bare patch, both workflow inputs carry the same patch with a leading `v`. Only one of the two actions actually requires it — `golangci-lint-action` validates its input against a `v`-anchored pattern and throws on a bare patch, while `goreleaser-action` accepts either and prepends the `v` itself (read from each action's source at the SHA pinned here; if either changed, the symptom would be a loud failure at install rather than a wrong binary). Matching the two keeps one convention rather than two.
 
-**Nothing detects a mismatch between a `mise.toml` pin and its workflow input.** Dependabot bumps an action's `uses:` SHA, never its inputs, and the weekly `toolchain-report` job reads `mise.toml` alone — so bumping the mise pin and forgetting the workflow leaves that report green the following week while the drift stands. The report prompts the bump; nothing prompts the other half of it. Review is the only guard, which is why this is written down rather than left to a gate.
+**Nothing detects a mismatch between a `mise.toml` pin and its workflow input.** Dependabot bumps an action's `uses:` SHA, never its inputs, and the weekly `toolchain-report` job in `.github/workflows/toolchain.yml` reads `mise.toml` alone — so bumping the mise pin and forgetting the workflow leaves that report green the following week while the drift stands. The report prompts the bump; nothing prompts the other half of it. Review is the only guard, which is why this is written down rather than left to a gate.
 
 ## go.mod `go` directive tracks the mise Go pin
 
@@ -47,7 +48,7 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 `mise.toml` sets `lockfile = true`, and `mise.lock` records each tool's resolved URL and checksum per platform. It is committed, and the two files must move together: run `mise lock` and commit the result in the same commit as any `mise.toml` version change.
 
-**Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `vuln.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate.
+**Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `toolchain.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate.
 
 Locally, a stale lock fails silently in an unhelpful direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
 
