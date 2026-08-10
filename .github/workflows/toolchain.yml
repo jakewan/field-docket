@@ -56,18 +56,24 @@ jobs:
       # control; SECURITY.md § Build and CI supply chain records the dependency.
       # Nothing is blocked either way: this workflow is not a required check.
       - name: Report outdated toolchain pins
-        # `shell: bash` adds pipefail, without which a mise failure in the
-        # reporting pipeline would be masked by tee's exit status.
+        # `shell: bash` fixes the flag set (-eo pipefail) in this file rather
+        # than inheriting the platform default, so the failure semantics the
+        # guards below are written against are stated rather than assumed.
         shell: bash
         run: |
-          mise outdated --bump --local | tee -a "$GITHUB_STEP_SUMMARY"
+          # Cosmetic: renders the report onto the run page, and deliberately not
+          # allowed to decide the step. Under errexit a mise failure here would
+          # exit before either annotation below, leaving the reporter's own
+          # breakage as the one failure this workflow cannot explain — the exact
+          # gap it exists to close. The authoritative call is the guarded one
+          # below, so a real breakage still surfaces, and surfaces named.
+          mise outdated --bump --local | tee -a "$GITHUB_STEP_SUMMARY" || true
 
-          # Captured once, and the reporter's own failure told apart from a
-          # stale pin. A failed or silent mise yields an empty substitution,
-          # which compared straight against {} would raise the pin-lag error and
-          # so name the wrong cause — the one thing this workflow exists to
-          # avoid. Testing it inside `if` is also what keeps `set -e` from
-          # exiting here with no annotation at all.
+          # Decisive, and captured once so the reporter's own failure is told
+          # apart from a stale pin: a failed or silent mise yields an empty
+          # substitution, which compared straight against {} would raise the
+          # pin-lag error and so name the wrong cause. Testing it inside `if` is
+          # what keeps errexit from exiting here with no annotation at all.
           if ! outdated="$(mise outdated --bump --local --json)" || [ -z "$outdated" ]; then
             echo "::error::mise could not report pin status — the reporter failed, not the pins"
             exit 1
