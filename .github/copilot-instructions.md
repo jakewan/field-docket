@@ -10,7 +10,7 @@ field-docket is a single-binary Model Context Protocol (MCP) server. It records 
 
 ## Mandatory PR checks
 
-Post these as public comments on every PR:
+Run both on every PR and state the result of each, including when the result is that nothing is wrong:
 
 1. **Overview validation** — the PR description must have an Overview that states the purpose (what changes and why). Flag a missing or purpose-less Overview.
 2. **Scope accuracy** — compare changed files against the description. Flag files changed but not mentioned, things described but not changed, and changes that don't serve the stated purpose (scope creep).
@@ -86,7 +86,7 @@ This is a public repository. Flag any PR that introduces personal or identifying
 
 Only comment if you are **at least 80% confident** the issue is real. When uncertain, stay silent rather than add noise.
 
-This governs **findings** — everything the sections above direct you to flag. The two checks under *Mandatory PR checks* are not findings and are not subject to it: run both on every PR and report each result, including when the result is that the description is fine.
+This governs **findings** — everything the sections above direct you to flag. The two checks under *Mandatory PR checks* are not findings and are not subject to it.
 
 ## Standard-library claims
 
