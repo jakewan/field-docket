@@ -59,7 +59,20 @@ Observation text is free-form and written by an agent from session context, whic
 
 **Redaction is deliberate and out-of-band.** The append-only triggers block deletion for every in-band caller, so removing an observation means dropping the triggers from a `sqlite3` session, deleting the row, and recreating them. That friction is intentional — it makes redaction a considered act rather than an available one — but it means a leaked secret has a known remedy.
 
-The store is created mode `0600` inside a `0700` directory. Those modes are set when the store is created and are not repaired afterward, so a store that arrives some other way — restored from a backup, or made by hand in a `sqlite3` session — keeps whatever permissions it came with. It is not encrypted at rest.
+The store is created mode `0600` inside a `0700` directory, and it is not encrypted at rest.
+
+**A docket whose files are reachable by anyone else is not served.** At startup field-docket checks the database and, when they exist, its `-wal` and `-shm` sidecars; if any of them carries a group or other permission bit, both tools refuse and say why. The reason is not only that someone could read the docket — it is that someone could have written to it. The append-only triggers bind callers coming through this server, not anything else holding the file, so a docket in that state may no longer be the record it appears to be.
+
+What that check does and does not cover:
+
+- It runs **once, at startup**. Permissions changed while a session is already running are not noticed.
+- It reads **mode bits only**, not ownership. A `0600` file owned by someone else passes.
+- It does **not** inspect the store's directory. You may put the store wherever you like, including a directory you did not create for it; a `0600` file in a `0755` directory is not readable by others.
+- It does not run on **Windows**, which has no POSIX mode bits — Go reports a synthetic mode there, so the check would refuse every store while telling you nothing. On Windows, file permissions are not a boundary this tool can describe.
+
+`field-docket snapshot` still works on a refused docket, deliberately: it writes a `0600` copy, which is how you capture the store as it stands and examine it before deciding whether to trust it.
+
+To go on using a docket as it is, list its path under `allow_unsafe_permissions` (see Configuration). The exemption is per-path and lasts until you remove it.
 
 ## Storage
 
@@ -79,6 +92,12 @@ To override, create `$XDG_CONFIG_HOME/field-docket/config.yml`:
 # Where the SQLite store lives. Defaults to
 # $XDG_STATE_HOME/field-docket/field-docket.db
 store: ~/.local/state/field-docket/field-docket.db
+
+# Dockets to serve even though their files are reachable by more than their
+# owner. Each entry is a store path, matched exactly; listing one docket does
+# not exempt another. Omit this key to have every docket checked.
+allow_unsafe_permissions:
+  - /srv/shared/field-docket.db
 ```
 
 Resolution order: the `--config` flag, then `$FIELD_DOCKET_CONFIG`, then the XDG path above.
