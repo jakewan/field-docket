@@ -50,9 +50,13 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 **Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `toolchain.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate.
 
-Locally, a stale lock fails silently in an unhelpful direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
+**The two commands are not interchangeable, and only one of them is safe after a pin change.** `mise lock` refreshes every platform already recorded in the lockfile. An install rewrites the changed tool's entry to the new version and **drops all of its platform blocks** — checksums and URLs for every platform, the local one included — leaving an entry nothing can be verified against. It does this whether or not it actually installs anything; an already-present version still triggers the rewrite while mise reports there was nothing to do. So a pin bump followed by an install alone silently strips that tool's verification data, and the paragraph above is why nothing downstream objects.
 
-A platform absent from the lock gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
+Run `mise lock` after any pin change, and read the resulting diff rather than assuming an earlier install could not have touched it.
+
+Both behaviours were observed directly on mise 2026.7.7 by bumping a pin, running an install by itself, and reading `git diff mise.lock`; `mise lock --help` describes the multi-platform refresh, and states that where no lockfile exists it only *shows* what would be created. Mise is not pinned in `mise.toml`, so a contributor's own version governs — re-run that probe if it matters. The symptom of a change here is a lockfile entry carrying a version with no platform blocks under it.
+
+With the pin unchanged, a platform absent from the lock instead gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
 
 ## The govulncheck tool dependency reaches the built binary
 
