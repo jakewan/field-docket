@@ -54,7 +54,7 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 Run `mise lock` after any pin change, and read the resulting diff rather than assuming an earlier install could not have touched it.
 
-Both behaviours were observed directly on mise 2026.7.7 by bumping a pin, running an install by itself, and reading `git diff mise.lock`; `mise lock --help` describes the multi-platform refresh, and states that where no lockfile exists it only *shows* what would be created. Mise is not pinned in `mise.toml`, so a contributor's own version governs — re-run that probe if it matters. The symptom of a change here is a lockfile entry carrying a version with no platform blocks under it.
+Both behaviours were observed directly on mise 2026.7.7 by bumping a pin, running an install by itself, and reading `git diff mise.lock`; `mise lock --help` describes the multi-platform refresh, and states that where no lockfile exists it only *shows* what would be created. Mise is not pinned in `mise.toml`, so a contributor's own version governs, and `.github/workflows/toolchain.yml` pins a newer one for the weekly report — the probe is provenance for the one version it ran on, not a standing guarantee, so re-run it if it matters. The symptom of a change here is a lockfile entry carrying a version with no platform blocks under it.
 
 With the pin unchanged, a platform absent from the lock instead gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
 

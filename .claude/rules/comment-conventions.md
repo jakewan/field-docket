@@ -1,6 +1,6 @@
 # Comment Conventions
 
-How comments earn their place in this repository — in any file that carries them: Go, workflow YAML, `mise.toml`, the `justfile`, `.golangci.yml`. A comment is a maintenance liability as much as an aid, so it must be worth the cost of keeping it true.
+How comments earn their place in this repository — in any file that carries them, source and configuration alike. A comment is a maintenance liability as much as an aid, so it must be worth the cost of keeping it true.
 
 - Comments explain **why** — rationale, constraints — not **what** the code or config already says.
 
