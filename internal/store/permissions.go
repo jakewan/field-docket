@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"runtime"
+	"strings"
 )
 
 // PermissionIssue names one store file reachable by someone other than its
@@ -23,6 +24,49 @@ func (p PermissionIssue) String() string {
 		return fmt.Sprintf("%s is a symbolic link", p.Path)
 	}
 	return fmt.Sprintf("%s has mode %04o", p.Path, p.Mode.Perm())
+}
+
+// UnsafeStoreError explains why a store carrying these issues is not served,
+// and what to do about it.
+//
+// The message has to carry three things, because the operator sees it in a tool
+// result with nothing else around it. Which files are wrong, so the finding can
+// be checked. What refusing means — not merely that someone could read the
+// docket, but that something could have written to it, which is what decides
+// whether the record already stored can be trusted. And two ways forward, since
+// repairing the modes and deciding the corpus is sound are different judgments:
+// the chmod, and the snapshot that captures the store as it stands for
+// examination first.
+func UnsafeStoreError(issues []PermissionIssue) error {
+	var b strings.Builder
+	b.WriteString("this docket is not being served because ")
+	if len(issues) == 1 {
+		b.WriteString("one of its files is reachable by more than its owner: ")
+	} else {
+		b.WriteString("some of its files are reachable by more than their owner: ")
+	}
+	for i, issue := range issues {
+		if i > 0 {
+			b.WriteString("; ")
+		}
+		b.WriteString(issue.String())
+	}
+
+	b.WriteString(". Anything that could read these files could also have modified the record, " +
+		"so the observations already stored cannot be assumed intact. " +
+		"To capture the docket as it stands before changing anything, run: field-docket snapshot <path>. " +
+		"To repair the permissions, run:")
+	for _, issue := range issues {
+		if issue.Symlink {
+			fmt.Fprintf(&b, " (replace the symbolic link at %s)", issue.Path)
+			continue
+		}
+		fmt.Fprintf(&b, " chmod 0600 %s", issue.Path)
+	}
+	b.WriteString(". To keep using this docket as it is, list its path under " +
+		"allow_unsafe_permissions in the config file.")
+
+	return errors.New(b.String())
 }
 
 // CheckPermissions reports the files of the store at path that are reachable

@@ -68,6 +68,11 @@ func recordSchema() *jsonschema.Schema {
 // refusal, and in particular nothing read from the store can. See
 // TestRecordRefusesOnlyMalformedInput.
 func (d *deps) recordObservation(ctx context.Context, req *mcp.CallToolRequest, in recordInput) (*mcp.CallToolResult, recordOutput, error) {
+	// Before anything touches d.store, which is nil in this case.
+	if d.unavailable != nil {
+		return toolError("%s", d.unavailable), recordOutput{}, nil
+	}
+
 	// Trim before validating so a whitespace-only value is rejected like a
 	// missing one, and so the trimmed form is what gets stored.
 	observation := strings.TrimSpace(in.Observation)

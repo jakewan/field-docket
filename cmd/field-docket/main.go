@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"slices"
 
 	"github.com/jakewan/field-docket/internal/config"
 	"github.com/jakewan/field-docket/internal/server"
@@ -42,45 +43,79 @@ func main() {
 		log.Fatalf("field-docket: %v", err)
 	}
 
-	st, err := openStore(ctx, configPath)
+	target, err := resolveStore(ctx, configPath)
 	if err != nil {
 		log.Fatalf("field-docket: %v", err)
 	}
-	defer func() {
-		if cerr := st.Close(); cerr != nil {
-			log.Printf("field-docket: closing store: %v", cerr)
-		}
-	}()
 
-	if rerr := run(ctx, server.New(st), &mcp.StdioTransport{}); rerr != nil {
+	// A store that should not be served is not opened at all, and the server is
+	// started anyway so it can say why. Exiting here instead would put the whole
+	// explanation on stderr, which a client captures to a log file — leaving the
+	// calling agent to see nothing but two missing tools.
+	var st *store.Store
+	if target.unusable != nil {
+		log.Printf("field-docket: %v", target.unusable)
+	} else {
+		st, err = store.Open(ctx, target.path)
+		if err != nil {
+			log.Fatalf("field-docket: %v", err)
+		}
+		defer func() {
+			if cerr := st.Close(); cerr != nil {
+				log.Printf("field-docket: closing store: %v", cerr)
+			}
+		}()
+	}
+
+	if rerr := run(ctx, server.New(st, target.unusable), &mcp.StdioTransport{}); rerr != nil {
 		log.Fatalf("mcp server: %v", rerr)
 	}
 }
 
-// openStore resolves the store location and opens it.
+// storeTarget is where the store lives, and why it should not be served if it
+// should not be.
+type storeTarget struct {
+	path string
+
+	// unusable is set when the store's files are reachable beyond their owner
+	// and the operator has not said that is acceptable for this store. It is a
+	// reason to refuse rather than a reason to stop: the two entry points do
+	// different things with it.
+	unusable error
+}
+
+// resolveStore resolves the store location and decides whether it can be served.
 //
 // Config supplies the path when it names one; otherwise the XDG default
 // applies. Resolving that default lives here rather than in the config package
 // so config stays ignorant of the store.
-func openStore(ctx context.Context, configPath string) (*store.Store, error) {
+//
+// The permission check runs before anything opens the store, which is what lets
+// the serve path decline without touching it — opening in WAL mode creates the
+// -wal and -shm sidecars, and a store whose provenance is in question should not
+// be altered by the program that noticed.
+func resolveStore(ctx context.Context, configPath string) (storeTarget, error) {
 	cfg, err := config.Load(ctx, configPath)
 	if err != nil {
-		return nil, err
+		return storeTarget{}, err
 	}
 
 	path := cfg.Store
 	if path == "" {
 		path, err = store.DefaultPath()
 		if err != nil {
-			return nil, err
+			return storeTarget{}, err
 		}
 	}
 
-	st, err := store.Open(ctx, path)
+	issues, err := store.CheckPermissions(path)
 	if err != nil {
-		return nil, err
+		return storeTarget{}, err
 	}
-	return st, nil
+	if len(issues) == 0 || slices.Contains(cfg.AllowUnsafePermissions, path) {
+		return storeTarget{path: path}, nil
+	}
+	return storeTarget{path: path, unusable: store.UnsafeStoreError(issues)}, nil
 }
 
 // runSnapshot writes a consistent copy of the store to the given destination.
@@ -109,7 +144,21 @@ func runSnapshot(ctx context.Context, args []string) error {
 		return errors.New("expected exactly one destination path")
 	}
 
-	st, err := openStore(ctx, *configPath)
+	target, err := resolveStore(ctx, *configPath)
+	if err != nil {
+		return err
+	}
+	// Unlike the serve path, a snapshot of a suspect store still runs. Capturing
+	// it is how an operator gets a copy to examine before deciding whether to
+	// trust the record, and the copy is written at 0600 regardless of the
+	// source's mode — so this is the repair path, not a way to spread the
+	// problem. Warning here reaches someone: this subcommand is run from a
+	// terminal, where stderr is read.
+	if target.unusable != nil {
+		log.Printf("field-docket snapshot: %v", target.unusable)
+	}
+
+	st, err := store.Open(ctx, target.path)
 	if err != nil {
 		return err
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -76,6 +77,54 @@ func chmod(t *testing.T, path string, mode fs.FileMode) {
 	t.Helper()
 	if err := os.Chmod(path, mode); err != nil {
 		t.Fatalf("chmod %s: %v", path, err)
+	}
+}
+
+// TestUnsafeStoreErrorTellsTheOperatorWhatToDo covers the message an operator
+// reads in a tool result with no other context around it.
+//
+// The half that is easy to lose is the middle one. Being handed a mode and a
+// chmod invites reading the whole thing as a question of who may read the file;
+// what actually stops the tools is that the record may have been written to, and
+// an operator who misses that repairs the permissions and carries on trusting a
+// corpus they had reason to doubt.
+func TestUnsafeStoreErrorTellsTheOperatorWhatToDo(t *testing.T) {
+	path := "/state/field-docket/field-docket.db"
+	err := UnsafeStoreError([]PermissionIssue{
+		{Path: path, Mode: 0o644},
+		{Path: path + "-wal", Mode: 0o640},
+	})
+
+	for _, want := range []struct{ fragment, why string }{
+		{path, "names the offending database"},
+		{path + "-wal", "names the offending sidecar"},
+		{"0644", "reports the mode found"},
+		{"0640", "reports each mode found, not just the first"},
+		{"chmod 0600 " + path, "gives the repair for the database"},
+		{"chmod 0600 " + path + "-wal", "gives the repair for the sidecar"},
+		{"modified", "says the record itself may have been altered"},
+		{"field-docket snapshot", "offers the way to capture the store for examination"},
+		{"allow_unsafe_permissions", "names the way to proceed deliberately"},
+	} {
+		if !strings.Contains(err.Error(), want.fragment) {
+			t.Errorf("message %s; it read:\n%s", want.why, err)
+		}
+	}
+}
+
+// TestUnsafeStoreErrorDoesNotSuggestChmodOnASymlink guards a remedy that would
+// be wrong rather than merely unhelpful: chmod follows the link, so obeying it
+// would change the mode of whatever the link points at — a file the operator may
+// not have intended to touch — while leaving the sidecar still redirected.
+func TestUnsafeStoreErrorDoesNotSuggestChmodOnASymlink(t *testing.T) {
+	path := "/state/field-docket/field-docket.db"
+	err := UnsafeStoreError([]PermissionIssue{{Path: path + "-wal", Symlink: true}})
+
+	if strings.Contains(err.Error(), "chmod") {
+		t.Errorf("message tells the operator to chmod a symbolic link; it read:\n%s", err)
+	}
+	if !strings.Contains(err.Error(), "symbolic link") {
+		t.Errorf("message does not say the sidecar is a symbolic link; it read:\n%s", err)
 	}
 }
 
