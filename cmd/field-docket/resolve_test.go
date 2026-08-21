@@ -94,6 +94,68 @@ func TestResolveStoreGatesOnPermissions(t *testing.T) {
 	}
 }
 
+// TestResolveStoreMatchesTheAllowlistByPathNotSpelling covers the way this
+// escape hatch is most likely to be reached for: an operator reads the refusal,
+// which prints the store path as their config spelled it, and writes the path
+// into allow_unsafe_permissions in whatever form comes to hand — commonly the
+// absolute one, even where the config names the store relatively.
+//
+// Comparing the two spellings literally would leave that operator with a config
+// that looks correct, a docket that keeps refusing, and nothing said about why.
+// A silent non-match is the worst failure available to the one mechanism that
+// exists for when the guard is wrong.
+func TestResolveStoreMatchesTheAllowlistByPathNotSpelling(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode bits are synthesised on Windows")
+	}
+
+	t.Run("entry spelled with a detour through the parent", func(t *testing.T) {
+		dir := t.TempDir()
+		storePath := filepath.Join(dir, "field-docket.db")
+		seedStore(t, storePath)
+		if err := os.Chmod(storePath, 0o644); err != nil {
+			t.Fatalf("chmod store: %v", err)
+		}
+
+		// Concatenated rather than joined: filepath.Join cleans its result, which
+		// would collapse the detour before the config ever saw it and leave this
+		// case asserting nothing.
+		detour := dir + "/../" + filepath.Base(dir) + "/field-docket.db"
+		configPath := writeConfigFor(t, storePath, "allow_unsafe_permissions:\n  - "+detour+"\n")
+
+		target, err := resolveStore(context.Background(), configPath)
+		if err != nil {
+			t.Fatalf("resolve store: %v", err)
+		}
+		if target.unusable != nil {
+			t.Errorf("an entry naming the same file did not exempt it: %v", target.unusable)
+		}
+	})
+
+	t.Run("absolute entry for a relatively named store", func(t *testing.T) {
+		dir := t.TempDir()
+		storePath := filepath.Join(dir, "field-docket.db")
+		seedStore(t, storePath)
+		if err := os.Chmod(storePath, 0o644); err != nil {
+			t.Fatalf("chmod store: %v", err)
+		}
+
+		// The config names the store relatively, so everything downstream sees
+		// the relative spelling — including the path printed in the refusal.
+		t.Chdir(dir)
+		configPath := writeConfigFor(t, "field-docket.db",
+			"allow_unsafe_permissions:\n  - "+storePath+"\n")
+
+		target, err := resolveStore(context.Background(), configPath)
+		if err != nil {
+			t.Fatalf("resolve store: %v", err)
+		}
+		if target.unusable != nil {
+			t.Errorf("an absolute entry did not exempt the same file named relatively: %v", target.unusable)
+		}
+	})
+}
+
 // TestResolveStoreExemptsOnlyTheListedStore pins the grain of the allowlist. An
 // entry naming one store must not clear a different one — that is the whole
 // reason the key is a list of paths rather than a single switch, and a matcher

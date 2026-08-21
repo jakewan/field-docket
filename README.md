@@ -94,8 +94,9 @@ To override, create `$XDG_CONFIG_HOME/field-docket/config.yml`:
 store: ~/.local/state/field-docket/field-docket.db
 
 # Dockets to serve even though their files are reachable by more than their
-# owner. Each entry is a store path, matched exactly; listing one docket does
-# not exempt another. Omit this key to have every docket checked.
+# owner. Each entry is a store path. Entries are compared as paths, so a
+# relative and an absolute spelling of the same file match, but listing one
+# docket never exempts another. Omit this key to have every docket checked.
 allow_unsafe_permissions:
   - /srv/shared/field-docket.db
 ```

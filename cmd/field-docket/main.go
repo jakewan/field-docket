@@ -12,7 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"slices"
+	"path/filepath"
 
 	"github.com/jakewan/field-docket/internal/config"
 	"github.com/jakewan/field-docket/internal/server"
@@ -112,10 +112,51 @@ func resolveStore(ctx context.Context, configPath string) (storeTarget, error) {
 	if err != nil {
 		return storeTarget{}, err
 	}
-	if len(issues) == 0 || slices.Contains(cfg.AllowUnsafePermissions, path) {
+	if len(issues) == 0 {
+		return storeTarget{path: path}, nil
+	}
+
+	exempt, err := allowlisted(path, cfg.AllowUnsafePermissions)
+	if err != nil {
+		return storeTarget{}, err
+	}
+	if exempt {
 		return storeTarget{path: path}, nil
 	}
 	return storeTarget{path: path, unusable: store.UnsafeStoreError(issues)}, nil
+}
+
+// allowlisted reports whether any entry names the same file as path.
+//
+// Compared as paths rather than as strings. The two spellings reach this from
+// different directions — the store path from the config's store key or the XDG
+// default, the entry typed by an operator reading a refusal — so requiring them
+// to match character for character would make an exemption fail on a relative
+// spelling against an absolute one, silently. That is the worst way for the one
+// mechanism that exists for when this guard is wrong to break.
+//
+// Resolved to absolute (which also cleans) but not through symbolic links: a
+// store reached by a link would still need its own entry. Following links would
+// mean failing on a path that does not resolve, which is a new way for the
+// escape hatch to stop working in exchange for a case nothing has asked for.
+func allowlisted(path string, entries []string) (bool, error) {
+	if len(entries) == 0 {
+		return false, nil
+	}
+	want, err := filepath.Abs(path)
+	if err != nil {
+		return false, fmt.Errorf("resolving store path %s: %w", path, err)
+	}
+	for _, entry := range entries {
+		got, aerr := filepath.Abs(entry)
+		if aerr != nil {
+			return false, fmt.Errorf("resolving allow_unsafe_permissions entry %s: %w", entry, aerr)
+		}
+		if got == want {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // runSnapshot writes a consistent copy of the store to the given destination.
