@@ -3,7 +3,10 @@ package store
 import (
 	"context"
 	"database/sql"
+	"io/fs"
+	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -78,6 +81,75 @@ func sample(class string) Observation {
 		Text:      "An observation.",
 		ScopeKind: "project",
 		ScopeRef:  "jakewan/field-docket",
+	}
+}
+
+// closedStoreAt creates a store at path, writes to it, and closes it.
+//
+// A clean close leaves the database alone on disk: SQLite checkpoints the WAL
+// and removes the -wal and -shm sidecars. So this is the shape of a store no
+// process is holding, and a spec wanting sidecars needs openStoreAt instead.
+func closedStoreAt(t *testing.T, path string) {
+	t.Helper()
+	st, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("open store at %s: %v", path, err)
+	}
+	if _, aerr := st.Append(context.Background(), sample("permissions")); aerr != nil {
+		t.Fatalf("append: %v", aerr)
+	}
+	if cerr := st.Close(); cerr != nil {
+		t.Fatalf("close store: %v", cerr)
+	}
+}
+
+// openStoreAt creates a store at path and leaves it open, so its -wal and -shm
+// sidecars exist for the duration of the spec.
+//
+// That is the real case the sidecar check answers rather than a contrivance:
+// this store takes concurrent writes from several sessions, so another process
+// holding it open is the normal state, and a session that died without a clean
+// close leaves the sidecars behind too.
+func openStoreAt(t *testing.T, path string) {
+	t.Helper()
+	st, err := Open(context.Background(), path)
+	if err != nil {
+		t.Fatalf("open store at %s: %v", path, err)
+	}
+	t.Cleanup(func() {
+		if cerr := st.Close(); cerr != nil {
+			t.Errorf("close store: %v", cerr)
+		}
+	})
+	if _, aerr := st.Append(context.Background(), sample("permissions")); aerr != nil {
+		t.Fatalf("append: %v", aerr)
+	}
+	for _, suffix := range []string{"-wal", "-shm"} {
+		if _, serr := os.Lstat(path + suffix); serr != nil {
+			t.Fatalf("expected %s sidecar on an open store: %v", suffix, serr)
+		}
+	}
+}
+
+// requirePOSIXModes skips a spec whose subject is a POSIX permission bit.
+//
+// Windows has no such bits: Go synthesises a mode from the read-only attribute,
+// so every writable file reports 0666 and every directory 0777. Asserting
+// against that would measure the synthesis rather than anything this package
+// does.
+func requirePOSIXModes(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("file mode bits are synthesised on Windows")
+	}
+}
+
+// chmod sets mode, failing the test rather than returning an error, so a spec's
+// setup stays a single line.
+func chmod(t *testing.T, path string, mode fs.FileMode) {
+	t.Helper()
+	if err := os.Chmod(path, mode); err != nil {
+		t.Fatalf("chmod %s: %v", path, err)
 	}
 }
 
