@@ -64,9 +64,14 @@ func recordSchema() *jsonschema.Schema {
 // recordObservation appends one observation.
 //
 // The refusal set here is the invariant made concrete: blank observation, blank
-// class, and a project-scoped record with no scope_ref. Nothing else can cause a
-// refusal, and in particular nothing read from the store can. See
+// class, and a project-scoped record with no scope_ref. Nothing read from the
+// store can cause a refusal, which is the invariant's actual content. See
 // TestRecordRefusesOnlyMalformedInput.
+//
+// The one refusal that is not about input is d.unavailable, and it is not a
+// judgment about the record either: it says the store cannot be served at all,
+// it is decided in the composition root before any handler runs, and it refuses
+// review_observations identically. See CLAUDE.md, "Where the line falls".
 func (d *deps) recordObservation(ctx context.Context, req *mcp.CallToolRequest, in recordInput) (*mcp.CallToolResult, recordOutput, error) {
 	// Before anything touches d.store, which is nil in this case.
 	if d.unavailable != nil {

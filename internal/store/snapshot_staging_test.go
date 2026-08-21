@@ -6,11 +6,18 @@ import (
 	"path/filepath"
 	"sync"
 	"testing"
+	"time"
 )
 
-// TestSnapshotNeverExposesTheIntermediate watches the destination directory for
-// the whole of a snapshot and fails if a copy of the observations is ever
+// TestSnapshotNeverExposesTheIntermediate samples the destination directory's
+// top-level entries for the whole of a snapshot and fails if any of them is
 // reachable by anyone but its owner.
+//
+// It reads that directory only, not into it, so what it actually checks is that
+// nothing the snapshot puts beside dest — the staging directory, and under the
+// previous arrangement the bare intermediate — is group- or other-accessible. A
+// 0700 staging directory makes its contents unreachable, so this is sufficient
+// for the property, but it is not a recursive scan and does not claim to be.
 //
 // The intermediate is the exposure that matters: SQLite creates a VACUUM INTO
 // destination at its own default mode adjusted by the umask, and the chmod that
@@ -50,6 +57,12 @@ func TestSnapshotNeverExposesTheIntermediate(t *testing.T) {
 				return
 			default:
 			}
+			// Paced rather than spinning: this runs alongside the snapshot it is
+			// measuring, under -race, on CI runners with few cores, and an
+			// unthrottled ReadDir loop would contend with the work under test.
+			// The interval is far shorter than the write it samples.
+			time.Sleep(200 * time.Microsecond)
+
 			entries, err := os.ReadDir(dir)
 			if err != nil {
 				continue

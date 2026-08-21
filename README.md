@@ -16,7 +16,9 @@ field-docket gives a session somewhere to put them. An agent records a short obs
 
 This is the design's load-bearing constraint, and it is enforced structurally rather than by convention.
 
-Recording is append-only and never gated. No stored state can cause a write to be refused, skipped, or silently dropped — a `record_observation` call fails only if its input is malformed. The observation table carries no column referring to any judgment about it, and `BEFORE UPDATE` / `BEFORE DELETE` triggers reject row mutation at the SQL layer.
+Recording is append-only and never gated. No stored state can cause a write to be refused, skipped, or silently dropped — a `record_observation` call fails only if its input is malformed, or if the docket itself cannot be served at all (see below). The observation table carries no column referring to any judgment about it, and `BEFORE UPDATE` / `BEFORE DELETE` triggers reject row mutation at the SQL layer.
+
+What the invariant forbids is a *judgment about the record* deciding whether a write happens. An *environment precondition* — no disk, an unreadable database, a docket whose files something else has touched — is a different thing: the docket is unavailable, and saying so is not deciding what is worth recording.
 
 The reason is that a store which can decline to record is a store that quietly decides what matters. Evidence collection and evidence evaluation are different acts, and mixing them produces a record shaped by the conclusions it was later used to support.
 
@@ -61,7 +63,9 @@ Observation text is free-form and written by an agent from session context, whic
 
 The store is created mode `0600` inside a `0700` directory, and it is not encrypted at rest.
 
-**A docket whose files are reachable by anyone else is not served.** At startup field-docket checks the database and, when they exist, its `-wal` and `-shm` sidecars; if any of them carries a group or other permission bit, both tools refuse and say why. The reason is not only that someone could read the docket — it is that someone could have written to it. The append-only triggers bind callers coming through this server, not anything else holding the file, so a docket in that state may no longer be the record it appears to be.
+**A docket whose files are reachable by anyone else is not served.** At startup field-docket checks the database and, when they exist, its `-wal`, `-shm`, and `-journal` sidecars; if any of them carries a group or other permission bit, both tools refuse and say why. The reason is not only that someone could read the docket. field-docket creates a docket `0600`, so any other mode means something outside it has touched the files — and a mode carries no history of what it was before, so one that is `0644` now may have been `0666` earlier. The append-only triggers bind callers coming through this server, not anything else holding the file, so a docket in that state may no longer be the record it appears to be.
+
+The most common benign cause is a docket that arrived some other way: restored from a backup, extracted from an archive under the usual `umask 022`, or made by hand in a `sqlite3` session. Modes are set when the docket is created and never repaired afterward, so such a docket keeps whatever permissions it came with, sidecars included — and that is what this check catches.
 
 What that check does and does not cover:
 
@@ -70,7 +74,7 @@ What that check does and does not cover:
 - It does **not** inspect the store's directory. You may put the store wherever you like, including a directory you did not create for it; a `0600` file in a `0755` directory is not readable by others.
 - It does not run on **Windows**, which has no POSIX mode bits — Go reports a synthetic mode there, so the check would refuse every store while telling you nothing. On Windows, file permissions are not a boundary this tool can describe.
 
-`field-docket snapshot` still works on a refused docket, deliberately: it writes a `0600` copy, which is how you capture the store as it stands and examine it before deciding whether to trust it.
+`field-docket snapshot` still works on a refused docket, deliberately: it writes a `0600` copy you can examine before deciding whether to trust the original. Note that taking a snapshot *opens* the docket — it produces a consistent logical copy, not an untouched image. If you want the latter, copy the database and any `-wal`/`-shm`/`-journal` files beside it before running anything.
 
 To go on using a docket as it is, list its path under `allow_unsafe_permissions` (see Configuration). The exemption is per-path and lasts until you remove it.
 

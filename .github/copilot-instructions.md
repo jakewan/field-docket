@@ -17,7 +17,9 @@ Post these as public comments on every PR:
 
 ## The two invariants — the highest-priority checks
 
-**1. Recording is separated from adjudication.** Recording is append-only and never gated: no stored state may cause a write to be refused, skipped, or silently dropped. `record_observation` fails only on malformed input.
+**1. Recording is separated from adjudication.** Recording is append-only and never gated: no stored state may cause a write to be refused, skipped, or silently dropped. `record_observation` fails only on malformed input, or when the store is unavailable.
+
+What the invariant forbids is a *judgment about the record* gating a write. An *environment precondition* — no disk, an unreadable database, a store whose files something outside this program has touched — is a different thing, and refuses every tool alike rather than deciding what is worth recording. The test is whether the refusal consults the observations. A precondition is established before any handler runs and is decided in the composition root, then passed to `server.New`; one that needs to look at a row is not a precondition.
 
 Flag as a serious defect any change that:
 

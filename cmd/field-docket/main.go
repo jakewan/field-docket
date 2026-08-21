@@ -201,7 +201,7 @@ func runSnapshot(ctx context.Context, args []string) error {
 	// is already taking one.
 	if target.unusable != nil {
 		log.Printf("field-docket snapshot: %s is reachable by more than its owner, "+
-			"so the record it holds may have been modified; this copy captures it as it stands",
+			"so the record it holds may have been modified; this copy is consistent but not untouched: taking it opens the docket",
 			target.path)
 	}
 
