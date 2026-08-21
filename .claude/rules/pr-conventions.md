@@ -42,7 +42,7 @@ A PR requires a changelog entry when it makes a **user-facing change**:
 - Observable behavior changes (what is refused, what is returned, output shape).
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
-- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal — a reader scanning a changelog for security-relevant releases has no other single place to look.
+- A dependency update that resolves a known advisory — a module in the `require` list. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal — a reader scanning a changelog for security-relevant releases has no other single place to look. A **pinned-toolchain bump is not this case**: it is build tooling, and `SECURITY.md` § Build and CI supply chain records the red-scan-then-bump cycle as the expected rhythm rather than a notable event. It owes no entry even when it clears advisories — unless a maintainer judges a particular advisory severe and genuinely reachable, in which case the entry says why.
 - Config-format changes.
 
 No entry is needed for: internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.
