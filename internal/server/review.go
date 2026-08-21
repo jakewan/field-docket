@@ -107,6 +107,11 @@ func reviewSchema() *jsonschema.Schema {
 
 // reviewObservations returns a filtered page of observations with counts.
 func (d *deps) reviewObservations(ctx context.Context, _ *mcp.CallToolRequest, in reviewInput) (*mcp.CallToolResult, reviewOutput, error) {
+	// Before anything touches d.store, which is nil in this case.
+	if d.unavailable != nil {
+		return toolError("%s", d.unavailable), reviewOutput{}, nil
+	}
+
 	filter := store.Filter{
 		Class:     strings.ToLower(strings.TrimSpace(in.Class)),
 		ScopeKind: strings.TrimSpace(in.ScopeKind),

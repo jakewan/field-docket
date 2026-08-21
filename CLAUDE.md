@@ -14,6 +14,10 @@ This is enforced structurally rather than by convention, three ways: the `observ
 
 The reason: a store that can decline to record is a store that quietly decides what matters. Evidence collection and evidence evaluation are different acts, and mixing them produces a record shaped by the conclusions it was later used to support.
 
+**Where the line falls.** What the invariant forbids is a *judgment about the record* gating a write. An *environment precondition* — no disk, an unreadable database, a store whose files something outside this program has touched — is a different thing: the docket is unavailable, and saying so is not deciding what is worth recording. Both refusals reach the caller the same way, so the distinction has to be drawn deliberately rather than inferred from the symptom.
+
+The test is whether the refusal consults the observations. `record_observation` reads nothing about what is already stored in order to decide, and `TestRecordRefusesOnlyMalformedInput` still covers that class alone. A precondition is established before any handler runs and refuses every tool alike, which is why the permission refusal is decided in the composition root and passed to `server.New` rather than being reached from inside a handler. A future precondition belongs at that same seam; one that needs to look at a row is not a precondition.
+
 **2. The store is per-machine and takes concurrent writes from several simultaneous sessions.** Three agent processes against one SQLite file is the normal case, not an edge. Everything touching the store is written for that.
 
 ## Status and layout

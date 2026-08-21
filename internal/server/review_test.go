@@ -31,7 +31,7 @@ func sessionWithClock(t *testing.T, now func() time.Time) *mcp.ClientSession {
 			t.Errorf("store close: %v", cerr)
 		}
 	})
-	return connect(t, New(st))
+	return connect(t, New(st, nil))
 }
 
 // seed records n observations of the given class, failing on any refusal.

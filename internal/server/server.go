@@ -65,11 +65,22 @@ const (
 // deps carries what the handlers need.
 type deps struct {
 	store *store.Store
+
+	// unavailable, when non-nil, is why this server has no usable store, and
+	// store is nil. Both tools return it instead of serving.
+	unavailable error
 }
 
 // New builds the field-docket MCP server with both tools registered.
-func New(st *store.Store) *mcp.Server {
-	d := &deps{store: st}
+//
+// unavailable states why the store cannot be served, or is nil in the ordinary
+// case; st is nil exactly when it is set. The server is still constructed and
+// still speaks MCP, because the reason has to reach a person and the only
+// channel that does is a tool result: a process that exits at startup puts its
+// explanation on stderr, which an MCP client captures to a log file, leaving the
+// calling agent to observe nothing but a missing tool.
+func New(st *store.Store, unavailable error) *mcp.Server {
+	d := &deps{store: st, unavailable: unavailable}
 
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:    serverName,
