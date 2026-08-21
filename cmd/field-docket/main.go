@@ -154,8 +154,14 @@ func runSnapshot(ctx context.Context, args []string) error {
 	// source's mode — so this is the repair path, not a way to spread the
 	// problem. Warning here reaches someone: this subcommand is run from a
 	// terminal, where stderr is read.
+	//
+	// Its own wording rather than the served message, which offers taking a
+	// snapshot as the way forward — advice that reads as a loop to someone who
+	// is already taking one.
 	if target.unusable != nil {
-		log.Printf("field-docket snapshot: %v", target.unusable)
+		log.Printf("field-docket snapshot: %s is reachable by more than its owner, "+
+			"so the record it holds may have been modified; this copy captures it as it stands",
+			target.path)
 	}
 
 	st, err := store.Open(ctx, target.path)
