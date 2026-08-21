@@ -18,7 +18,14 @@ builds:
     # cgo-bound alternative is what keeps this line true.
     env:
       - CGO_ENABLED=0
-    goos: [linux, darwin, windows]
+    # Windows is deliberately absent. This tool's only confidentiality boundary
+    # is filesystem permissions, and Go reports a synthesised mode there rather
+    # than POSIX bits — so the guard that refuses a store reachable beyond its
+    # owner cannot work, and the property the store's security rests on is not
+    # merely untested but unavailable. Publishing a binary would advertise a
+    # platform where that is true and where nothing here is tested. See README,
+    # "Platforms".
+    goos: [linux, darwin]
     goarch: [amd64, arm64]
     # serverVersion is injected here AND in the justfile (its `version :=` /
     # `-ldflags -X`). Both target the same symbol; a rename of
@@ -33,9 +40,6 @@ builds:
 
 archives:
   - formats: [tar.gz]
-    format_overrides:
-      - goos: windows
-        formats: [zip]
 
 checksum:
   name_template: checksums.txt

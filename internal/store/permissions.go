@@ -136,6 +136,11 @@ func shellQuote(path string) string {
 // the read-only attribute, so every writable file reports 0666 and every
 // directory 0777. The check would refuse every store on that platform while
 // carrying no information, so it does not run there.
+//
+// No Windows binary is published, and this branch is not an attempt to support
+// the platform — it is what keeps `go install` on Windows from producing a tool
+// that refuses every store on a fresh run. The confidentiality boundary this
+// package rests on does not exist there; the README says so under "Platforms".
 func CheckPermissions(path string) ([]PermissionIssue, error) {
 	if runtime.GOOS == "windows" {
 		return nil, nil

@@ -117,6 +117,14 @@ just install
 
 That builds to `~/.local/bin/field-docket`. Register it with your MCP client as a stdio server running the `field-docket` command.
 
+## Platforms
+
+Linux and macOS, on `amd64` and `arm64`. Those are what releases are built for.
+
+**Windows is not supported, and no Windows binary is published.** The reason is specific rather than incidental: this tool stores observations unencrypted and treats filesystem permissions as their only confidentiality boundary. Go reports a synthesised file mode on Windows rather than POSIX bits, so the check that refuses a docket reachable beyond its owner cannot run — the property the docket's security rests on is not merely untested there, it is unavailable. Shipping a binary would advertise a platform where that is true.
+
+The code still compiles and runs on Windows, so `go install` works and the permission check is skipped rather than bricking the tool. Treat that as unsupported: nothing here is tested on Windows, and a docket kept on it has no permission boundary this project can describe.
+
 ## Backups
 
 `field-docket snapshot <path>` writes a consistent single-file copy of the store, suitable for backup.
