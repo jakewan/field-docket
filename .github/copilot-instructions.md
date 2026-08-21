@@ -81,6 +81,14 @@ This is a public repository. Flag any PR that introduces personal or identifying
 
 Only comment if you are **at least 80% confident** the issue is real. When uncertain, stay silent rather than add noise.
 
+## Standard-library claims
+
+Claims about the Go standard library have produced false positives here in both of their forms — that a symbol does not exist, and that an API behaves a particular way. Hold the class to a higher bar than the confidence threshold above, and before flagging one:
+
+- **Account for the language version.** Read the `go` directive in `go.mod`: it is the exact version this module targets, not a minimum floor. A symbol added in a recent Go release is available if that directive allows it, so a "no such method" claim is not worth 80% confidence until the directive has been checked.
+- **A construct golangci-lint accepts is not a compile error.** The linter set configured in `.golangci.yml` runs on every PR, and some of its checks *suggest* recent standard-library forms over older ones. Reporting one of those as uncompilable contradicts the tool that asked for it.
+- **`%s` and `%v` render an error identically.** `fmt` calls the value's `Error()` method for both, so neither produces `%!s(...)`. Do not suggest swapping one for the other.
+
 ## Comment format
 
 For each issue:
