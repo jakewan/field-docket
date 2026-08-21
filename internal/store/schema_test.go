@@ -89,6 +89,10 @@ func sample(class string) Observation {
 // A clean close leaves the database alone on disk: SQLite checkpoints the WAL
 // and removes the -wal and -shm sidecars. So this is the shape of a store no
 // process is holding, and a spec wanting sidecars needs openStoreAt instead.
+//
+// This and openStoreAt leave the wall clock in place where openAt injects a
+// deterministic one, because they serve specs about the store's shape on disk,
+// which assert no timestamp. A spec that asserts ordering wants openAt.
 func closedStoreAt(t *testing.T, path string) {
 	t.Helper()
 	st, err := Open(context.Background(), path)
