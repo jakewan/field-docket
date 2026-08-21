@@ -86,7 +86,8 @@ Go authoring conventions are in `.claude/rules/go-practices.md` (loaded when Cla
 - `CONTRIBUTING.md` — contributor setup, scope, PR posture, the changelog-entry obligation, and the release ritual with its semver policy.
 - `SECURITY.md` — reporting channel, plus the data-handling, supply-chain, and release claims. It asserts the store's permissions, durability, and redaction path, so a change to `internal/store/` should be checked against it; it also asserts what CI scans, pins, and verifies, so a change to the workflows, `mise.lock`, or the Dependabot config should be checked against it too.
 - `CODE_OF_CONDUCT.md` — Contributor Covenant 2.1, with conduct reports routed the same way security reports are.
-- `.github/copilot-instructions.md` — review guidance for GitHub Copilot.
+- `.github/copilot-instructions.md` — review guidance for GitHub Copilot, applied to every pull request.
+- `.github/instructions/instruction-surfaces.instructions.md` — additional review guidance Copilot loads only for diffs touching this repository's instruction files; its frontmatter names the exact set.
 
 [bdd]: https://en.wikipedia.org/wiki/Behavior-driven_development
 [tdd]: https://en.wikipedia.org/wiki/Test-driven_development
