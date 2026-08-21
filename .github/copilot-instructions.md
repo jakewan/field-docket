@@ -41,7 +41,6 @@ Understand these before flagging anything:
 - **Trimming and lowercasing `class`/`scope_ref` is normalization, not validation.** No value is rejected for its content. Don't flag it as silently mutating user input; do flag a change that starts *rejecting* on content.
 - **`_txlock=immediate` on the write DSN and not the read DSN is deliberate**, not an inconsistency. The driver consumes it in `newTx` gated on `!opts.ReadOnly`, so on a shared DSN every read transaction would take a write lock and serialize reviews against records.
 - **The append-only triggers are not tamper-proofing** and the code does not claim they are. They exist to stop the program rewriting its own rows; `DROP TRIGGER` is ordinary SQL, and dropping them out-of-band is the project's deliberate redaction path for something that should never have been recorded. Don't flag their bypassability as a hole.
-- **Verify a standard-library claim before raising it.** A comment asserting that a symbol does not exist, or that a `fmt` verb misformats, is a claim about one specific Go version and one documented behavior. `go.mod` names the exact patch version CI builds with — check it, and check the package documentation, before raising such a finding. Confidently-wrong claims of this shape have consumed a whole review round here; when you cannot verify one, stay silent.
 - **No credentials exist in this project.** It authenticates to nothing.
 
 ## What to review
@@ -66,7 +65,7 @@ field-docket keeps a `CHANGELOG.md` in Keep a Changelog 1.1.0 format, written by
 
 This section is kept in step with `.claude/rules/pr-conventions.md` § Changelog and `CONTRIBUTING.md` § Changelog entries. A change to what requires an entry, to the categories, or to the anchor convention lands in all three or in none.
 
-The first convention below is a recurring false-positive source; the rest are obligations, so flag a PR that misses one.
+Its conventions produce reviewer error in both directions — flagging a correct entry, and passing over a missing one that is required:
 
 - **The trailing `(#N)` anchor is the introducing PR number, not the issue.** Do not flag an entry that closes issues `#A`/`#B` for anchoring to the PR number — that is the intended convention.
 - **A PR refining a feature still under `[Unreleased]` amends that feature's existing entry** rather than adding a separate `Fixed`/`Changed` line — you don't log a fix for behavior that never shipped. Flag a PR that adds one instead of amending. The amendment itself surfaces in a diff as a modified line rather than an added one, so do not read it as a missing entry.
@@ -87,4 +86,13 @@ This is a public repository. Flag any PR that introduces personal or identifying
 
 Only comment if you are **at least 80% confident** the issue is real. When uncertain, stay silent rather than add noise.
 
-This governs **findings** — the items under *What to review* and the obligations under *Reviewing changelog changes* and *Personal-details check*. The two checks under *Mandatory PR checks* are not findings and are not subject to it: run both on every PR and report each result, including when the result is that the description is fine.
+This governs **findings** — everything the sections above direct you to flag. The two checks under *Mandatory PR checks* are not findings and are not subject to it: run both on every PR and report each result, including when the result is that the description is fine.
+
+## Standard-library claims
+
+Claims about the Go standard library have produced false positives here — that a symbol does not exist, and that an API behaves a particular way. Prefer silence over a standard-library claim you have not checked against the sources below.
+
+- **Read the `go` directive in `go.mod`.** It is a minimum — the go command reports a violation as `requires go >= …` — and this project pins it to the exact patch CI installs, so any symbol added in that release or earlier is present. `sync.WaitGroup.Go` arrived in Go 1.25; reporting it as nonexistent is the shape of error this guards against.
+- **A compile-error claim is checked mechanically.** CI builds and race-tests the module on a pull request into `main` that touches Go, so a "this will not compile" comment is either redundant with the build or wrong.
+- **`%s` and `%v` render a non-nil error identically**, because `fmt` reaches its `error` case for both and calls `Error()`. Do not suggest swapping one for the other. They diverge only where `fmt` never reaches that case — a nil error interface gives `%!s(<nil>)` against `<nil>`, and an error implementing `fmt.Formatter` receives the verb — so flag an unguarded nil on its own merits rather than as a verb choice.
+
