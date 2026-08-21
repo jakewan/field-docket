@@ -86,7 +86,7 @@ Only comment if you are **at least 80% confident** the issue is real. When uncer
 Claims about the Go standard library have produced false positives here — that a symbol does not exist, and that an API behaves a particular way. Prefer silence over a standard-library claim you have not checked against the sources below.
 
 - **Read the `go` directive in `go.mod`.** It is a minimum — the go command reports a violation as `requires go >= …` — and this project pins it to the exact patch CI installs, so any symbol added in that release or earlier is present. `sync.WaitGroup.Go` arrived in Go 1.25; reporting it as nonexistent is the shape of error this guards against.
-- **A compile-error claim is checked mechanically.** CI builds and race-tests the module on a pull request that touches Go, so a "this will not compile" comment is either redundant with the build or wrong.
+- **A compile-error claim is checked mechanically.** CI builds and race-tests the module on a pull request into `main` that touches Go, so a "this will not compile" comment is either redundant with the build or wrong.
 - **`%s` and `%v` render a non-nil error identically**, because `fmt` reaches its `error` case for both and calls `Error()`. Do not suggest swapping one for the other. They diverge only where `fmt` never reaches that case — a nil error interface gives `%!s(<nil>)` against `<nil>`, and an error implementing `fmt.Formatter` receives the verb — so flag an unguarded nil on its own merits rather than as a verb choice.
 
 ## Comment format
