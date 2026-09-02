@@ -186,6 +186,14 @@ func (d *deps) reviewObservations(ctx context.Context, _ *mcp.CallToolRequest, i
 // straddling the limit is ordinary, and slicing through one yields invalid UTF-8
 // that encoding/json silently replaces with U+FFFD — handing the caller a
 // corrupted trailing character instead of a clean truncation.
+//
+// That replacement is a v1 compatibility guarantee rather than a property of the
+// package: since Go 1.27, encoding/json has been implemented by
+// encoding/json/v2, which rejects invalid UTF-8, and the replacing form survives
+// only because DefaultOptionsV1 sets jsontext.AllowInvalidUTF8. A call site
+// moved to encoding/json/v2 would fail the marshal instead, so there this backup
+// is what keeps a capped observation serialisable at all rather than merely
+// intact.
 func clip(s string, n int) (string, bool) {
 	if len(s) <= n {
 		return s, false
