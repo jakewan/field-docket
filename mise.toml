@@ -5,13 +5,13 @@
 lockfile = true
 
 [tools]
-go = "1.26.7"
+go = "1.27.1"
 # The golangci-lint version is pinned identically here and in the CI workflow's
 # golangci-lint-action `version:` — treat them as one atomic value so local and
 # CI lint run the same binary against the same config schema.
-golangci-lint = "2.12.2"
+golangci-lint = "2.13.2"
 just = "1.58.0"
-lefthook = "2.1.10"
+lefthook = "2.1.12"
 # goreleaser backs `just release-check`. It is pinned here rather than assumed
 # present because the release path is reachable locally, not only from the tag
 # workflow.
@@ -19,4 +19,4 @@ lefthook = "2.1.10"
 # The goreleaser pin is duplicated into the goreleaser-action `version:` in both
 # the CI and release workflows — treat all three as one atomic value, as with
 # golangci-lint above. Nothing detects a mismatch.
-goreleaser = "2.17.1"
+goreleaser = "2.18.0"
