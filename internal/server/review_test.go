@@ -225,10 +225,11 @@ func TestReviewCapsObservationTextAndSaysSo(t *testing.T) {
 
 // TestReviewCapDoesNotSplitARune guards the boundary case the byte cap invites.
 //
-// Cutting a multi-byte rune in half produces invalid UTF-8, which encoding/json
-// silently replaces with U+FFFD — so the caller receives a corrupted trailing
-// character rather than a clean truncation. Observations are free text an agent
-// composes, so non-ASCII in one is ordinary, not exotic.
+// Cutting a multi-byte rune in half produces invalid UTF-8, so the caller
+// receives a corrupted trailing character rather than a clean truncation — see
+// clip's doc comment for what encoding/json does with it, and why that rests on
+// a v1 compatibility option rather than on the package. Observations are free
+// text an agent composes, so non-ASCII in one is ordinary, not exotic.
 func TestReviewCapDoesNotSplitARune(t *testing.T) {
 	cs := newTestSession(t)
 
