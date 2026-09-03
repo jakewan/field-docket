@@ -22,3 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Speak MCP protocol version `2026-07-28` when a client negotiates it; clients on earlier versions are unaffected. The recording client's name reaches the server differently under it — through per-request metadata rather than the `initialize` handshake — and that metadata makes the name optional where the handshake required it. An observation recorded by a client that omits it therefore carries an empty client name, which is a conforming client rather than a broken one. Because the store is append-only, this is a permanent seam: whether an empty name means "not supplied" or "not required" depends on which side of it the observation falls. (#2)
+
+### Security
+
+- Update the SQLite driver to `modernc.org/sqlite` v1.57.0, which vendors an upstream fix for a data-corruption bug in SQLite 3.53.3's journal rollback: a crash while committing a multi-database transaction could leave a hot journal deleted rather than replayed. Reaching it requires a super-journal, which only `ATTACH` creates, and this store opens a single database in WAL mode — so no docket was exposed to it. (#45)
