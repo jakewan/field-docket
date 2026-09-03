@@ -359,16 +359,14 @@ func TestConcurrentOpensAgreeOnSchemaVersion(t *testing.T) {
 	stores := make(chan *Store, openers)
 
 	for range openers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			st, err := Open(ctx, path)
 			if err != nil {
 				errs <- err
 				return
 			}
 			stores <- st
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)

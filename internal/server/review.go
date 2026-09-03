@@ -99,8 +99,11 @@ func reviewSchema() *jsonschema.Schema {
 	// Zero has no "no cap" meaning here — an uncapped review over a store that
 	// has accumulated for months would overrun the caller's budget — so the
 	// floor is 1 rather than 0.
-	s.Properties["limit"].Minimum = jsonschema.Ptr(1.0)
-	s.Properties["limit"].Maximum = jsonschema.Ptr(float64(maxLimit))
+	//
+	// new(expr) is the Go 1.26 form of new, which takes a value rather than a
+	// type.
+	s.Properties["limit"].Minimum = new(1.0)
+	s.Properties["limit"].Maximum = new(float64(maxLimit))
 	s.Properties["scope_kind"].Enum = scopeKinds
 	return s
 }

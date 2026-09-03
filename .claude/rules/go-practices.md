@@ -66,3 +66,11 @@ This server speaks JSON-RPC over stdio.
 
 - Exported types, functions, and packages carry godoc comments beginning with the symbol's name (`// New builds …`). The `revive` `exported` lint rule enforces this — a missing or malformed comment fails CI.
 - The repo-wide comment conventions — why-not-what, and comment durability — live in `.claude/rules/comment-conventions.md`.
+
+## Modernization
+
+This module tracks the forms `go fix` endorses. `go fix -diff ./...` reports them as a patch without applying anything, and `go fix ./...` applies them; `go tool fix help` lists the analyzers and what each one rewrites. The `errors.AsType[T]` preference under Errors is an instance of the same posture — its analyzer is `errorsastype`. Not every form preference in this file is: `make([]T, 0, n)` under MCP server is a wire-shape requirement no analyzer emits, and reading it as optional tidiness would be a defect.
+
+**No gate runs it, deliberately.** `go fix -diff` exits non-zero on a non-empty diff and would make a one-line CI or hook check, but that would let the pinned Go version decide what the module is allowed to contain: a fixer added upstream would turn the build red with no code change, and the pin bump and the code rewrite would then have to land together. That is the coupling class `.claude/rules/toolchain-ci-parity.md` governs, and it is a heavier trade than the tidiness buys. Run it when a Go pin moves, or when you want to know.
+
+A rewrite is not automatically behaviour-preserving just because a tool emitted it. `waitgroupgo` is the standing counter-example: `sync.WaitGroup.Go` carries the precondition `The function f must not panic` in its own doc comment, because it skips `Done` and re-panics where a hand-written `defer wg.Done()` runs. Substituting it into a function that can panic changes what `Wait` observes. Read what the analyzer substitutes before accepting it, and treat a changed concurrency spec as changed (see Tests).
