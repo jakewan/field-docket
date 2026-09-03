@@ -38,6 +38,12 @@ CI installs Go via `actions/setup-go` with `go-version-file: go.mod`, so the `go
 
 Bump `go.mod` and `mise.toml` together on a Go upgrade. The coupling carries a second consequence: `govulncheck` reports standard-library advisories against the Go on `PATH`, so whichever pin a given run resolves decides what the vulnerability scan considers vulnerable. CI's scan job uses `setup-go` from `go.mod`, a developer's `just vuln` uses mise's — they agree only while the two pins do.
 
+A third: a Go upgrade can retire code forms, since `go fix`'s analyzer set grows with the toolchain. `.claude/rules/go-practices.md` § Modernization records that this module tracks those forms and how to report them, and it is stated there rather than here because it governs Go source. It is repeated here because a pin bump touches no Go file, so that rule does not load at the moment this one does.
+
+**The Go pin also has an upper bound, which the parity above does not express.** golangci-lint analyses with the `go/types` of the Go release it was itself built against — `golangci-lint --version` reports that release — and each golangci-lint release announces which Go minor it adds support for. A Go minor is published before the golangci-lint release supporting it, and the weekly toolchain report names the two tools independently, so taking the Go line on its own is the report's most natural misreading. Move the pair together, and take the supporting release from golangci-lint's own release notes rather than assuming the newest patch covers it.
+
+The failure is loud rather than silent, which makes `just lint` the gate that catches it and the one to run when moving the pair: golangci-lint refuses to start and names both versions — `the Go language version (goX.Y) used to build golangci-lint is lower than the targeted Go version (X.Z)`. Every other gate passes, so a bump verified with anything less looks clean. Expect the pair to be briefly un-bumpable, too: mise's `minimum_release_age` default hides very recent releases, so the supporting golangci-lint may be unavailable for a few days after it ships, holding the Go pin behind upstream — and the weekly report will call that lag every week while it holds, with no way to say the lag is known.
+
 ## The serverVersion ldflags symbol is injected from two places
 
 `internal/server.serverVersion` is injected by the `justfile`'s `-ldflags -X` (local and `just install` builds) and by `.goreleaser.yaml`'s `ldflags` (release builds). Both name the symbol as a fully-qualified string, so **a rename or a package move must be made in both** — otherwise one path silently reverts to the `"dev"` default.
@@ -50,9 +56,13 @@ Nothing type-checks that string. The Go linker ignores an `-X` naming a symbol t
 
 **Nothing in CI enforces this.** No workflow job installs through mise — the only `jdx/mise-action` call, in `toolchain.yml`'s toolchain-report job, sets `install: false`, and CI takes Go from `go.mod` and its other tools from action inputs. So a stale `mise.lock` is caught by review or not at all, which is why it is written here as a rule rather than left to a gate.
 
-Locally, a stale lock fails silently in an unhelpful direction: `mise install` updates an existing lockfile in place, so a bump followed by an install quietly rewrites `mise.lock` and hands you a diff you did not ask for. Review that diff rather than assuming your install could not have touched it. (`mise lock` is what *creates* the lockfile; `mise install` only maintains one that exists.)
+**The two commands are not interchangeable, and only one of them is safe after a pin change.** `mise lock` refreshes every platform already recorded in the lockfile. An install rewrites the changed tool's entry to the new version and **drops all of its platform blocks** — checksums and URLs for every platform, the local one included — leaving an entry nothing can be verified against. It does this whether or not it actually installs anything; an already-present version still triggers the rewrite while mise reports there was nothing to do. So a pin bump followed by an install alone silently strips that tool's verification data, and the paragraph above is why nothing downstream objects.
 
-A platform absent from the lock gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
+Run `mise lock` after any pin change, and read the resulting diff rather than assuming an earlier install could not have touched it.
+
+Both behaviours were observed directly on mise 2026.7.7 by bumping a pin, running an install by itself, and reading `git diff mise.lock`; `mise lock --help` describes the multi-platform refresh, and states that where no lockfile exists it only *shows* what would be created. Mise is not pinned in `mise.toml`, so a contributor's own version governs, and `.github/workflows/toolchain.yml` pins a newer one for the weekly report — the probe is provenance for the one version it ran on, not a standing guarantee, so re-run it if it matters. The symptom of a change here is a lockfile entry carrying a version with no platform blocks under it.
+
+With the pin unchanged, a platform absent from the lock instead gets written in by whoever first installs on it, so an install from a new platform also produces a diff to review.
 
 ## The govulncheck tool dependency reaches the built binary
 

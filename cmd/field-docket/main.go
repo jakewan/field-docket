@@ -12,6 +12,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 
 	"github.com/jakewan/field-docket/internal/config"
 	"github.com/jakewan/field-docket/internal/server"
@@ -42,45 +43,120 @@ func main() {
 		log.Fatalf("field-docket: %v", err)
 	}
 
-	st, err := openStore(ctx, configPath)
+	target, err := resolveStore(ctx, configPath)
 	if err != nil {
 		log.Fatalf("field-docket: %v", err)
 	}
-	defer func() {
-		if cerr := st.Close(); cerr != nil {
-			log.Printf("field-docket: closing store: %v", cerr)
-		}
-	}()
 
-	if rerr := run(ctx, server.New(st), &mcp.StdioTransport{}); rerr != nil {
+	// A store that should not be served is not opened at all, and the server is
+	// started anyway so it can say why. Exiting here instead would put the whole
+	// explanation on stderr, which a client captures to a log file — leaving the
+	// calling agent to see nothing but two missing tools.
+	var st *store.Store
+	if target.unusable != nil {
+		log.Printf("field-docket: %v", target.unusable)
+	} else {
+		st, err = store.Open(ctx, target.path)
+		if err != nil {
+			log.Fatalf("field-docket: %v", err)
+		}
+		defer func() {
+			if cerr := st.Close(); cerr != nil {
+				log.Printf("field-docket: closing store: %v", cerr)
+			}
+		}()
+	}
+
+	if rerr := run(ctx, server.New(st, target.unusable), &mcp.StdioTransport{}); rerr != nil {
 		log.Fatalf("mcp server: %v", rerr)
 	}
 }
 
-// openStore resolves the store location and opens it.
+// storeTarget is where the store lives, and why it should not be served if it
+// should not be.
+type storeTarget struct {
+	path string
+
+	// unusable is set when the store's files are reachable beyond their owner
+	// and the operator has not said that is acceptable for this store. It is a
+	// reason to refuse rather than a reason to stop: the two entry points do
+	// different things with it.
+	unusable error
+}
+
+// resolveStore resolves the store location and decides whether it can be served.
 //
 // Config supplies the path when it names one; otherwise the XDG default
 // applies. Resolving that default lives here rather than in the config package
 // so config stays ignorant of the store.
-func openStore(ctx context.Context, configPath string) (*store.Store, error) {
+//
+// The permission check runs before anything opens the store, which is what lets
+// the serve path decline without touching it — opening in WAL mode creates the
+// -wal and -shm sidecars, and a store whose provenance is in question should not
+// be altered by the program that noticed.
+func resolveStore(ctx context.Context, configPath string) (storeTarget, error) {
 	cfg, err := config.Load(ctx, configPath)
 	if err != nil {
-		return nil, err
+		return storeTarget{}, err
 	}
 
 	path := cfg.Store
 	if path == "" {
 		path, err = store.DefaultPath()
 		if err != nil {
-			return nil, err
+			return storeTarget{}, err
 		}
 	}
 
-	st, err := store.Open(ctx, path)
+	issues, err := store.CheckPermissions(path)
 	if err != nil {
-		return nil, err
+		return storeTarget{}, err
 	}
-	return st, nil
+	if len(issues) == 0 {
+		return storeTarget{path: path}, nil
+	}
+
+	exempt, err := allowlisted(path, cfg.AllowUnsafePermissions)
+	if err != nil {
+		return storeTarget{}, err
+	}
+	if exempt {
+		return storeTarget{path: path}, nil
+	}
+	return storeTarget{path: path, unusable: store.UnsafeStoreError(issues)}, nil
+}
+
+// allowlisted reports whether any entry names the same file as path.
+//
+// Compared as paths rather than as strings. The two spellings reach this from
+// different directions — the store path from the config's store key or the XDG
+// default, the entry typed by an operator reading a refusal — so requiring them
+// to match character for character would make an exemption fail on a relative
+// spelling against an absolute one, silently. That is the worst way for the one
+// mechanism that exists for when this guard is wrong to break.
+//
+// Resolved to absolute (which also cleans) but not through symbolic links: a
+// store reached by a link would still need its own entry. Following links would
+// mean failing on a path that does not resolve, which is a new way for the
+// escape hatch to stop working in exchange for a case nothing has asked for.
+func allowlisted(path string, entries []string) (bool, error) {
+	if len(entries) == 0 {
+		return false, nil
+	}
+	want, err := filepath.Abs(path)
+	if err != nil {
+		return false, fmt.Errorf("resolving store path %s: %w", path, err)
+	}
+	for _, entry := range entries {
+		got, aerr := filepath.Abs(entry)
+		if aerr != nil {
+			return false, fmt.Errorf("resolving allow_unsafe_permissions entry %s: %w", entry, aerr)
+		}
+		if got == want {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // runSnapshot writes a consistent copy of the store to the given destination.
@@ -109,7 +185,27 @@ func runSnapshot(ctx context.Context, args []string) error {
 		return errors.New("expected exactly one destination path")
 	}
 
-	st, err := openStore(ctx, *configPath)
+	target, err := resolveStore(ctx, *configPath)
+	if err != nil {
+		return err
+	}
+	// Unlike the serve path, a snapshot of a suspect store still runs. Capturing
+	// it is how an operator gets a copy to examine before deciding whether to
+	// trust the record, and the copy is written at 0600 regardless of the
+	// source's mode — so this is the repair path, not a way to spread the
+	// problem. Warning here reaches someone: this subcommand is run from a
+	// terminal, where stderr is read.
+	//
+	// Its own wording rather than the served message, which offers taking a
+	// snapshot as the way forward — advice that reads as a loop to someone who
+	// is already taking one.
+	if target.unusable != nil {
+		log.Printf("field-docket snapshot: %s is reachable by more than its owner, "+
+			"so the record it holds may have been modified; this copy is consistent but not untouched: taking it opens the docket",
+			target.path)
+	}
+
+	st, err := store.Open(ctx, target.path)
 	if err != nil {
 		return err
 	}

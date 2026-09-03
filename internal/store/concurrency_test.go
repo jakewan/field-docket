@@ -86,9 +86,7 @@ func TestConcurrentRecordersLoseNoObservations(t *testing.T) {
 	ids := make(chan string, writers*perWriter)
 
 	for w := range writers {
-		wg.Add(1)
-		go func(w int) {
-			defer wg.Done()
+		wg.Go(func() {
 			for i := range perWriter {
 				rec, err := st.Append(ctx, Observation{
 					Class:     fmt.Sprintf("writer-%d", w),
@@ -101,7 +99,7 @@ func TestConcurrentRecordersLoseNoObservations(t *testing.T) {
 				}
 				ids <- rec.ID
 			}
-		}(w)
+		})
 	}
 	wg.Wait()
 	close(errs)
@@ -153,9 +151,7 @@ func TestSeparateProcessesRecordConcurrentlyWithoutLoss(t *testing.T) {
 	failures := make(chan error, children)
 
 	for c := range children {
-		wg.Add(1)
-		go func(c int) {
-			defer wg.Done()
+		wg.Go(func() {
 			cmd := exec.CommandContext(ctx, os.Args[0])
 			cmd.Env = append(childEnv(),
 				envWriterDB+"="+path,
@@ -166,7 +162,7 @@ func TestSeparateProcessesRecordConcurrentlyWithoutLoss(t *testing.T) {
 			if err != nil {
 				failures <- fmt.Errorf("child %d: %w: %s", c, err, out)
 			}
-		}(c)
+		})
 	}
 	// Every child must be reaped before the assertions run, and before
 	// t.TempDir()'s cleanup tries to remove a directory a child may still hold
@@ -359,16 +355,14 @@ func TestConcurrentOpensAgreeOnSchemaVersion(t *testing.T) {
 	stores := make(chan *Store, openers)
 
 	for range openers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			st, err := Open(ctx, path)
 			if err != nil {
 				errs <- err
 				return
 			}
 			stores <- st
-		}()
+		})
 	}
 	wg.Wait()
 	close(errs)

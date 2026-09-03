@@ -5,6 +5,12 @@
 # later commits -> v0.1.0-N-gSHA; dirty tree -> a -dirty suffix.
 version := `git describe --tags --dirty 2>/dev/null || echo dev`
 
+# Must stay first: a recipe above this one becomes the default.
+
+# Show this list. Running `just` with no recipe does the same.
+default:
+    @just --list
+
 # The -ldflags below injects internal/server.serverVersion — the SAME symbol
 # .goreleaser.yaml injects at release time. A rename of that symbol must be
 # changed in BOTH places, or one path silently reverts to "dev". Neither a unit
@@ -32,8 +38,10 @@ install: build
 test:
     go test ./...
 
-# Run all tests under the race detector (what CI runs; the concurrency specs are
-# only meaningful with it enabled)
+# The concurrency specs are only meaningful with the race detector enabled, so
+# this form and CI's must stay the same.
+
+# Run all tests under the race detector (what CI runs)
 test-race:
     go test -race ./...
 
@@ -46,10 +54,11 @@ test-coverage:
 lint:
     golangci-lint run ./...
 
-# Format code with the same formatter set CI enforces (gofmt + goimports, per
-# .golangci.yml). Plain `gofmt -w .` would leave import ordering untouched, so a
-# contributor who formats and pushes without the commit hook installed could
-# still fail the lint job.
+# The formatter set is gofmt + goimports, per .golangci.yml. Plain `gofmt -w .`
+# would leave import ordering untouched, so a contributor who formats and pushes
+# without the commit hook installed could still fail the lint job.
+
+# Format code with the formatter set CI enforces
 fmt:
     golangci-lint fmt ./...
 
@@ -69,20 +78,23 @@ tidy-check:
 vuln:
     go tool govulncheck ./...
 
-# Report mise-managed tools with newer versions available.
 # --bump is required, not cosmetic: every pin in mise.toml is an exact version,
 # and plain `mise outdated` compares against the latest release matching the
 # requested spec — which for an exact pin is always the pin itself, so it
 # reports "up to date" no matter how far upstream has moved. --local keeps a
 # contributor's global mise config out of the report.
+
+# Report mise-managed tools with newer versions available
 toolchain-outdated:
     mise outdated --bump --local
 
-# Validate release config and dry-run a snapshot build (mirrors the CI gate).
-# --snapshot skips cosign signing and never runs provenance (CI-only, OIDC-bound),
-# so this proves the build, not the hardening. --single-target keeps the local
-# loop fast; it still resolves the ldflags symbol, which is what this guards. CI
-# runs the same build across the full release matrix.
+# Mirrors the CI gate. --snapshot skips cosign signing and never runs provenance
+# (CI-only, OIDC-bound), so this proves the build, not the hardening.
+# --single-target keeps the local loop fast; it still resolves the ldflags
+# symbol, which is what this guards. CI runs the same build across the full
+# release matrix.
+
+# Validate release config and dry-run a snapshot build
 release-check:
     goreleaser check
     goreleaser build --snapshot --single-target --clean

@@ -31,7 +31,7 @@ func sessionWithClock(t *testing.T, now func() time.Time) *mcp.ClientSession {
 			t.Errorf("store close: %v", cerr)
 		}
 	})
-	return connect(t, New(st))
+	return connect(t, New(st, nil))
 }
 
 // seed records n observations of the given class, failing on any refusal.
@@ -225,10 +225,11 @@ func TestReviewCapsObservationTextAndSaysSo(t *testing.T) {
 
 // TestReviewCapDoesNotSplitARune guards the boundary case the byte cap invites.
 //
-// Cutting a multi-byte rune in half produces invalid UTF-8, which encoding/json
-// silently replaces with U+FFFD — so the caller receives a corrupted trailing
-// character rather than a clean truncation. Observations are free text an agent
-// composes, so non-ASCII in one is ordinary, not exotic.
+// Cutting a multi-byte rune in half produces invalid UTF-8, so the caller
+// receives a corrupted trailing character rather than a clean truncation — see
+// clip's doc comment for what encoding/json does with it, and why that rests on
+// a v1 compatibility option rather than on the package. Observations are free
+// text an agent composes, so non-ASCII in one is ordinary, not exotic.
 func TestReviewCapDoesNotSplitARune(t *testing.T) {
 	cs := newTestSession(t)
 
@@ -285,6 +286,35 @@ func TestReviewRejectsNonPositiveLimit(t *testing.T) {
 			res := callTool(t, cs, "review_observations", map[string]any{"limit": limit})
 			if !res.IsError {
 				t.Fatalf("limit %d was accepted; the floor is 1", limit)
+			}
+		})
+	}
+}
+
+// TestReviewLimitCeiling pins the published ceiling to maxLimit.
+//
+// Both cases are written against the symbol, so retuning maxLimit moves both
+// arms and they stay green — what the pair catches is the schema wiring
+// drifting away from the constant, not the constant changing. Each arm bounds
+// one side: the accept case fails if the wiring lands below maxLimit, the
+// over-cap case if it lands above, so neither alone pins the ceiling. Nothing
+// else would catch the drift — the published schema is the only enforcer,
+// since Store.List substitutes a default for a non-positive limit and applies
+// no upper clamp.
+func TestReviewLimitCeiling(t *testing.T) {
+	cs := newTestSession(t)
+
+	for _, tc := range []struct {
+		limit   int
+		wantErr bool
+	}{
+		{limit: maxLimit, wantErr: false},
+		{limit: maxLimit + 1, wantErr: true},
+	} {
+		t.Run(fmt.Sprint(tc.limit), func(t *testing.T) {
+			res := callTool(t, cs, "review_observations", map[string]any{"limit": tc.limit})
+			if res.IsError != tc.wantErr {
+				t.Fatalf("limit %d: IsError = %v, want %v", tc.limit, res.IsError, tc.wantErr)
 			}
 		})
 	}

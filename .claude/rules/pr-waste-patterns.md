@@ -2,7 +2,7 @@
 
 (extension point: `pr-waste-patterns`)
 
-Waste in a PR diff in this project means artifacts that consume reviewer attention without creating value: scaffolding left over from development, debug instrumentation that didn't get removed, conflict resolution that didn't get cleaned up. The patterns below are the source of truth for what a PR health check should flag, regardless of which tool runs the scan — a reviewer doing it by hand reads this file directly; a tooling-assisted check consumes it via the `pr-waste-patterns` extension point.
+Waste in a PR diff in this project means artifacts that consume reviewer attention without creating value: scaffolding left over from development, debug instrumentation that didn't get removed, conflict resolution that didn't get cleaned up. The patterns below are the source of truth for the diff scan run from this repository — a reviewer doing it by hand reads this file directly; a tooling-assisted check consumes it via the `pr-waste-patterns` extension point. GitHub Copilot's review brief is a separate surface that does not read this file and carries its own, shorter set, so a pattern stated here is not thereby in force there.
 
 A baseline scan need only catch conflict markers in added lines; everything else lives here so this Go project can express its language-specific waste set in one place.
 

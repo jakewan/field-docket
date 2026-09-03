@@ -99,14 +99,22 @@ func reviewSchema() *jsonschema.Schema {
 	// Zero has no "no cap" meaning here — an uncapped review over a store that
 	// has accumulated for months would overrun the caller's budget — so the
 	// floor is 1 rather than 0.
-	s.Properties["limit"].Minimum = jsonschema.Ptr(1.0)
-	s.Properties["limit"].Maximum = jsonschema.Ptr(float64(maxLimit))
+	//
+	// new(expr) is the Go 1.26 form of new, which takes a value rather than a
+	// type.
+	s.Properties["limit"].Minimum = new(1.0)
+	s.Properties["limit"].Maximum = new(float64(maxLimit))
 	s.Properties["scope_kind"].Enum = scopeKinds
 	return s
 }
 
 // reviewObservations returns a filtered page of observations with counts.
 func (d *deps) reviewObservations(ctx context.Context, _ *mcp.CallToolRequest, in reviewInput) (*mcp.CallToolResult, reviewOutput, error) {
+	// Before anything touches d.store, which is nil in this case.
+	if d.unavailable != nil {
+		return toolError("%s", d.unavailable), reviewOutput{}, nil
+	}
+
 	filter := store.Filter{
 		Class:     strings.ToLower(strings.TrimSpace(in.Class)),
 		ScopeKind: strings.TrimSpace(in.ScopeKind),
@@ -181,6 +189,14 @@ func (d *deps) reviewObservations(ctx context.Context, _ *mcp.CallToolRequest, i
 // straddling the limit is ordinary, and slicing through one yields invalid UTF-8
 // that encoding/json silently replaces with U+FFFD — handing the caller a
 // corrupted trailing character instead of a clean truncation.
+//
+// That replacement is a v1 compatibility guarantee rather than a property of the
+// package: since Go 1.27, encoding/json has been implemented by
+// encoding/json/v2, which rejects invalid UTF-8, and the replacing form survives
+// only because DefaultOptionsV1 sets jsontext.AllowInvalidUTF8. A call site
+// moved to encoding/json/v2 would fail the marshal instead, so there this backup
+// is what keeps a capped observation serialisable at all rather than merely
+// intact.
 func clip(s string, n int) (string, bool) {
 	if len(s) <= n {
 		return s, false
