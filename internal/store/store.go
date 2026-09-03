@@ -498,39 +498,31 @@ func (s *Store) Snapshot(ctx context.Context, dest string) (err error) {
 	// VACUUM INTO refuses to overwrite, so write beside the target and rename.
 	// The rename also means a reader of dest never sees a partial snapshot.
 	//
-	// The intermediate name comes from os.CreateTemp rather than a fixed
-	// dest+".tmp" so that two overlapping snapshot runs — a scheduled one and a
-	// manual one, say — cannot collide, where a fixed name lets the second run's
-	// cleanup delete the first's in-progress output. It is created in dest's own
-	// directory so the rename stays on one filesystem and therefore atomic.
-	tmp, terr := os.CreateTemp(filepath.Dir(dest), ".field-docket-snapshot-*")
-	if terr != nil {
-		return fmt.Errorf("reserving snapshot temporary: %w", terr)
+	// The intermediate is staged inside its own directory rather than directly
+	// beside dest, because the mode SQLite gives it cannot be set in advance.
+	// VACUUM INTO creates its destination itself, at SQLITE_DEFAULT_FILE_PERMISSIONS
+	// adjusted by the umask — 0644 under the common umask 022 — and the chmod
+	// below cannot run until the copy is finished. Staging in a directory
+	// os.MkdirTemp creates without group or other access means that interval is
+	// unreachable rather than merely brief, which matters because the file
+	// holds the whole corpus. The directory's generated name also keeps two
+	// overlapping runs — a scheduled one and a manual one, say — from
+	// colliding, and putting it in dest's own directory keeps the rename on one
+	// filesystem and therefore atomic.
+	stage, serr := os.MkdirTemp(filepath.Dir(dest), ".field-docket-snapshot-*")
+	if serr != nil {
+		return fmt.Errorf("reserving snapshot staging directory: %w", serr)
 	}
-	tmpPath := tmp.Name()
-	if cerr := tmp.Close(); cerr != nil {
-		return errors.Join(
-			fmt.Errorf("reserving snapshot temporary: %w", cerr), os.Remove(tmpPath))
-	}
-	// Removed rather than written into: VACUUM INTO refuses an existing
-	// destination. CreateTemp's value here is the reserved unique name, not the
-	// file handle.
-	if rerr := os.Remove(tmpPath); rerr != nil {
-		return fmt.Errorf("clearing snapshot temporary: %w", rerr)
-	}
+	tmpPath := filepath.Join(stage, "snapshot.db")
 
-	// Every failure below has to clear the intermediate itself. A unique name is
-	// what makes overlapping runs safe, and it is also what removes the fixed
-	// name's one virtue: nothing later comes along and clears it. A partial
-	// VACUUM INTO left behind would be an orphaned copy of the observations, at
-	// whatever mode SQLite chose, in a directory a backup tool may well be
-	// watching.
+	// Unconditional, unlike a cleanup that only fires on failure: on the success
+	// path the intermediate is renamed away but its staging directory is not,
+	// and leaving those behind would litter a directory a backup tool may well
+	// be watching. On the failure path the directory still holds a partial copy
+	// of the observations, which nothing else will clear.
 	defer func() {
-		if err == nil {
-			return
-		}
-		if rerr := os.Remove(tmpPath); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
-			err = errors.Join(err, fmt.Errorf("clearing failed snapshot: %w", rerr))
+		if rerr := os.RemoveAll(stage); rerr != nil && !errors.Is(rerr, os.ErrNotExist) {
+			err = errors.Join(err, fmt.Errorf("clearing snapshot staging directory: %w", rerr))
 		}
 	}()
 
@@ -538,12 +530,13 @@ func (s *Store) Snapshot(ctx context.Context, dest string) (err error) {
 		return fmt.Errorf("writing snapshot: %w", verr)
 	}
 
-	// SQLite creates a VACUUM INTO destination as a main database, at its own
-	// default mode (0644) rather than at the source's — unlike the -wal/-shm
-	// sidecars, which do inherit. Without this the backup, the one path designed
-	// to carry observations off the machine, would be the widest exposure of a
-	// corpus whose only confidentiality boundary is filesystem permissions.
-	// Applied before the rename so dest is never briefly world-readable.
+	// The mode is not inherited from the source: VACUUM INTO opens its
+	// destination as a main database, which SQLite creates at its own default
+	// rather than at the source's mode — unlike the -wal/-shm sidecars, which do
+	// inherit. Without this the backup, the one path designed to carry
+	// observations off the machine, would be the widest exposure of a corpus
+	// whose only confidentiality boundary is filesystem permissions. Applied
+	// before the rename so dest is never briefly readable by anyone else.
 	if cerr := os.Chmod(tmpPath, 0o600); cerr != nil {
 		return fmt.Errorf("securing snapshot: %w", cerr)
 	}

@@ -86,7 +86,7 @@ func connect(t *testing.T, srv *mcp.Server) *mcp.ClientSession {
 // client session.
 func newTestSession(t *testing.T) *mcp.ClientSession {
 	t.Helper()
-	return connect(t, New(newTestStore(t)))
+	return connect(t, New(newTestStore(t), nil))
 }
 
 // callTool invokes a tool and fails the test if the call itself errored.

@@ -112,7 +112,7 @@ A PR that makes a **user-facing change** needs an entry in `CHANGELOG.md`. User-
 - Observable behavior changes — what is refused, what is returned, output shape.
 - **Any change to the stored schema, or to how a stored value is normalized.** These are load-bearing beyond the usual bar: the store is append-only, so a normalization change partitions the record permanently — observations written before and after can never be reconciled — and a reader reasoning over accumulated evidence needs to know where the seam is.
 - Bug fixes that affect user-visible results.
-- A dependency update that resolves a known advisory. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal.
+- A dependency update that resolves a known advisory — a module in the `require` list; the entry goes under `Security`. `govulncheck` runs on every PR and on `main`, so an advisory reported on `main` but no longer reported on the bump's PR is the signal. A bump of the **pinned Go toolchain** is not this case: it is build tooling, and `SECURITY.md` treats the scan going red and a maintainer bumping the pin as the expected cycle rather than a notable event. It owes no entry even when it clears advisories — unless a particular advisory was severe and genuinely reachable, in which case explain why in the entry.
 - Config-format changes.
 
 No entry is needed for internal refactors with no observable effect, test-only changes, CI/build/tooling, documentation, or agent rules.

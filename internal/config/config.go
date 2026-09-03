@@ -25,12 +25,24 @@ type Config struct {
 	// location"; resolving that default belongs to the composition root, so
 	// config stays ignorant of the store package.
 	Store string
+
+	// AllowUnsafePermissions lists store paths, each with a leading ~ expanded,
+	// whose files may be reachable beyond their owner without the server
+	// declining to serve them.
+	//
+	// A list rather than a single switch, because the exemption outlives the
+	// incident that prompted it: a blanket flag set once would stay in force for
+	// every store the binary ever opens, including one this config is pointed at
+	// later. Matching a path the operator named is a decision they made about
+	// that store.
+	AllowUnsafePermissions []string
 }
 
 // file mirrors the on-disk YAML shape. It is unexported and separate from Config
 // so the public type stays flat without coupling callers to the file's layout.
 type file struct {
-	Store string `yaml:"store"`
+	Store                  string   `yaml:"store"`
+	AllowUnsafePermissions []string `yaml:"allow_unsafe_permissions"`
 }
 
 // Load reads the config, resolving its path from override (the --config flag),
@@ -80,7 +92,24 @@ func Load(_ context.Context, override string) (*Config, error) {
 		}
 	}
 
-	return &Config{Store: store}, nil
+	// Blank entries are dropped for the same reason a blank store path is
+	// treated as absent: they carry no intent. Silently keeping one would put an
+	// empty string in the allowlist, which no store path can equal but which
+	// reads, to someone scanning the config, as though something were exempt.
+	var allowed []string
+	for _, entry := range f.AllowUnsafePermissions {
+		trimmed := strings.TrimSpace(entry)
+		if trimmed == "" {
+			continue
+		}
+		expanded, xerr := expandTilde(trimmed, "allow_unsafe_permissions entry")
+		if xerr != nil {
+			return nil, xerr
+		}
+		allowed = append(allowed, expanded)
+	}
+
+	return &Config{Store: store, AllowUnsafePermissions: allowed}, nil
 }
 
 // configPath resolves the config file path: the trimmed override, then a
