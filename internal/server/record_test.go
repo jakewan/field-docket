@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"strings"
 	"testing"
 
@@ -21,9 +22,7 @@ func validRecord() map[string]any {
 
 func withField(base map[string]any, key string, value any) map[string]any {
 	out := make(map[string]any, len(base)+1)
-	for k, v := range base {
-		out[k] = v
-	}
+	maps.Copy(out, base)
 	if value == nil {
 		delete(out, key)
 	} else {

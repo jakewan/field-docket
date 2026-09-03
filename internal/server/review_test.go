@@ -291,6 +291,35 @@ func TestReviewRejectsNonPositiveLimit(t *testing.T) {
 	}
 }
 
+// TestReviewLimitCeiling pins the published ceiling to maxLimit.
+//
+// Both cases are written against the symbol, so retuning maxLimit moves both
+// arms and they stay green — what the pair catches is the schema wiring
+// drifting away from the constant, not the constant changing. Each arm bounds
+// one side: the accept case fails if the wiring lands below maxLimit, the
+// over-cap case if it lands above, so neither alone pins the ceiling. Nothing
+// else would catch the drift — the published schema is the only enforcer,
+// since Store.List substitutes a default for a non-positive limit and applies
+// no upper clamp.
+func TestReviewLimitCeiling(t *testing.T) {
+	cs := newTestSession(t)
+
+	for _, tc := range []struct {
+		limit   int
+		wantErr bool
+	}{
+		{limit: maxLimit, wantErr: false},
+		{limit: maxLimit + 1, wantErr: true},
+	} {
+		t.Run(fmt.Sprint(tc.limit), func(t *testing.T) {
+			res := callTool(t, cs, "review_observations", map[string]any{"limit": tc.limit})
+			if res.IsError != tc.wantErr {
+				t.Fatalf("limit %d: IsError = %v, want %v", tc.limit, res.IsError, tc.wantErr)
+			}
+		})
+	}
+}
+
 func TestReviewOnEmptyStoreSerializesAsArrays(t *testing.T) {
 	cs := newTestSession(t)
 
