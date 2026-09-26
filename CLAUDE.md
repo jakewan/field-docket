@@ -81,7 +81,7 @@ Go authoring conventions are in `.claude/rules/go-practices.md` (loaded when Cla
 - `.claude/rules/no-personal-details.md` — keep personal/identifying details out of this public repo.
 - `.claude/rules/toolchain-ci-parity.md` — keeping the pinned local toolchain and CI in lockstep (loaded when Claude reads a pinned-toolchain file).
 - `.claude/rules/github-actions-pinning.md` — pin every action to a commit SHA (loaded when Claude reads a workflow).
-- `.claude/rules/design-fork-adjudication.md` — how value-laden design forks are settled here.
+- `.claude/rules/design-fork-adjudication.md` — how value-laden design forks are weighed here.
 - `README.md` — what the tool is, its tool surface, storage properties, and install.
 - `CONTRIBUTING.md` — contributor setup, scope, PR posture, the changelog-entry obligation, and the release ritual with its semver policy.
 - `SECURITY.md` — reporting channel, plus the data-handling, supply-chain, and release claims. It asserts the store's permissions, durability, and redaction path, so a change to `internal/store/` should be checked against it; it also asserts what CI scans, pins, and verifies, so a change to the workflows, `mise.lock`, or the Dependabot config should be checked against it too.
