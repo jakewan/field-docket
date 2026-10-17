@@ -73,8 +73,8 @@ func TestServerExposesRecordAndReviewTools(t *testing.T) {
 }
 
 // TestToolsDeclareWhetherTheyAreReadOnly pins the read/write split clients see.
-// A client that gates writes — a read-only planning mode, an approval prompt —
-// treats a tool without readOnlyHint as a write, so an unannotated read prompts
+// A client that gates writes — Claude Code's plan mode, for one — treats a tool
+// without readOnlyHint as a write, so an unannotated read prompts
 // on every call; a write wrongly marked read-only would slip past that gate.
 // Every exposed tool must appear here, so a new one is classified on purpose.
 func TestToolsDeclareWhetherTheyAreReadOnly(t *testing.T) {

@@ -95,8 +95,10 @@ func New(st *store.Store, unavailable error) *mcp.Server {
 		InputSchema: recordSchema(),
 	}, d.recordObservation)
 
-	// Clients that gate writes treat a tool without readOnlyHint as a write, so
-	// leaving it off would put an approval prompt in front of every read.
+	// MCP's readOnlyHint defaults to false (go-sdk mcp.ToolAnnotations), so a
+	// client that gates writes — Claude Code's plan mode, for one — treats an
+	// unannotated tool as a write and prompts before every read. Were that
+	// default to flip, the annotation would be redundant rather than wrong.
 	// record_observation stays unannotated: it is a write.
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "review_observations",

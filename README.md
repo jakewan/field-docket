@@ -51,7 +51,7 @@ All filters are optional and combine with AND: `class`, `scope_kind`, `scope_ref
 
 Results come back newest first. `total` reports the size of the whole match and `truncated` says whether the page cut it short — the store never truncates silently. `class_counts` spans the entire match rather than the returned page, so it stays meaningful when results are capped.
 
-The tool declares itself read-only (`readOnlyHint`), so a client that holds writes behind a prompt or a planning mode can tell it apart from a write. `record_observation` is a write and carries no such annotation.
+The tool declares itself read-only (`readOnlyHint`) and closed-world (`openWorldHint: false`, since it reads only the local store), so a client that gates writes, such as Claude Code's plan mode, can tell it apart from a write. `record_observation` is a write and carries no such annotation.
 
 To page backward, pass the last row's `recorded_at` **and** its `id` as `before` / `before_id`. Both are required together: timestamps are not unique when several sessions record concurrently, so a timestamp-only cursor would skip the rest of that instant.
 
