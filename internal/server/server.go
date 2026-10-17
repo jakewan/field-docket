@@ -95,10 +95,17 @@ func New(st *store.Store, unavailable error) *mcp.Server {
 		InputSchema: recordSchema(),
 	}, d.recordObservation)
 
+	// Clients that gate writes treat a tool without readOnlyHint as a write, so
+	// leaving it off would put an approval prompt in front of every read.
+	// record_observation stays unannotated: it is a write.
 	mcp.AddTool(s, &mcp.Tool{
 		Name:        "review_observations",
 		Description: reviewDescription,
 		InputSchema: reviewSchema(),
+		Annotations: &mcp.ToolAnnotations{
+			ReadOnlyHint:  true,
+			OpenWorldHint: new(false),
+		},
 	}, d.reviewObservations)
 
 	return s
