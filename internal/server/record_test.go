@@ -72,6 +72,41 @@ func TestServerExposesRecordAndReviewTools(t *testing.T) {
 	}
 }
 
+// TestToolsDeclareWhetherTheyAreReadOnly pins the read/write split clients see.
+// A client that gates writes — Claude Code's plan mode, for one — treats a tool
+// without readOnlyHint as a write, so an unannotated read prompts
+// on every call; a write wrongly marked read-only would slip past that gate.
+// Every exposed tool must appear here, so a new one is classified on purpose.
+func TestToolsDeclareWhetherTheyAreReadOnly(t *testing.T) {
+	cs := newTestSession(t)
+
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+
+	wantReadOnly := map[string]bool{
+		"record_observation":  false,
+		"review_observations": true,
+	}
+
+	for _, tool := range res.Tools {
+		want, ok := wantReadOnly[tool.Name]
+		if !ok {
+			t.Errorf("tool %q is not classified as read-only or write", tool.Name)
+			continue
+		}
+		got := tool.Annotations != nil && tool.Annotations.ReadOnlyHint
+		if got != want {
+			t.Errorf("tool %q readOnlyHint = %v, want %v", tool.Name, got, want)
+			continue
+		}
+		if want && (tool.Annotations.OpenWorldHint == nil || *tool.Annotations.OpenWorldHint) {
+			t.Errorf("tool %q openWorldHint unset or true, want false: it reads only the local store", tool.Name)
+		}
+	}
+}
+
 func TestRecordEchoesPersistedIdentity(t *testing.T) {
 	cs := newTestSession(t)
 
