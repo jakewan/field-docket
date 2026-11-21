@@ -121,7 +121,7 @@ jobs:
       # locally. The leading v is the shared form for an action version input in
       # this file; mise pins the same patch bare. Neither is wrong — see the
       # parity rule for why both spellings stand.
-      - uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7.2.3
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           install-only: true
           version: "v2.18.0"
